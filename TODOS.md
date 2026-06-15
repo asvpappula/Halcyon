@@ -37,6 +37,11 @@ Deferred from the CEO review on 2026-06-14 (Selective Expansion). The MVP perime
 ## Export polish
 - [ ] TIFF + WebP, watermark (text/image), advanced resize
 
+## Phase 1 review fast-follows (from staff-eng review)
+- [ ] Large-image proxy: downscale working texture + compute fit/stats on a 256px proxy (Phase 8 perf; currently uploads full-res).
+- [ ] Context-loss: basic rebuild-on-restore is in; add a real device test on low-memory mobile.
+- [ ] Orphan edits: `loadAll` drops edits whose blob is missing — fine for now; add a cleanup sweep when library lands.
+
 ## Engine / quality (track as it matures)
 - [ ] If fidelity spike median ΔE2000 > ~3: add bounded CPU refinement to the analytic fit (CEO D1 option C).
 - [ ] Mood-board **clustering** (dominant-look target) — deferred; P2 ships robust **averaging** only. Add clustering post-validation if averaging looks washed out.

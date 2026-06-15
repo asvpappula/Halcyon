@@ -50,3 +50,50 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Thin develop slider — gold fill only while live (DESIGN-SYSTEM §5).
+   The filled portion is set inline (linear-gradient) from the component. */
+.hx-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  outline: none;
+  cursor: pointer;
+}
+.hx-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--text-faint);
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.hx-range:hover::-webkit-slider-thumb {
+  border-color: var(--text-muted);
+}
+.hx-range.live::-webkit-slider-thumb,
+.hx-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+.hx-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--text-faint);
+}
+.hx-range.live::-moz-range-thumb {
+  border-color: var(--accent);
+}
+.hx-range:focus-visible {
+  outline: none;
+}
+.hx-range:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
