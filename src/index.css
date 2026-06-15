@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens — single source of truth (mirrors docs/DESIGN-SYSTEM.md §1).
+   Tailwind maps semantic names to these vars in tailwind.config.js.
+   Neutral grays only; gold (--accent) is a state signal, never decoration. */
+:root {
+  --bg-sunken: #0a0a0b;
+  --bg-base: #0e0e0f;
+  --surface-1: #161618;
+  --surface-2: #1c1c1f;
+  --surface-3: #232327;
+  --border-subtle: #1f1f22;
+  --border-default: #262628;
+  --border-strong: #34343a;
+  --text-primary: #ededec;
+  --text-secondary: #b4b4ba;
+  --text-muted: #8a8a8f;
+  --text-faint: #5c5c62;
+  --accent: #c9a961;
+  --accent-hover: #d8ba74;
+  --accent-press: #b7984f;
+  --accent-subtle: rgba(201, 169, 97, 0.12);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: Inter, system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Tabular numerals for any readout that must not jitter while scrubbing. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visible focus rings everywhere (accessibility, DESIGN-SYSTEM §9). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
