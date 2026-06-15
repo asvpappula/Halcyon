@@ -63,6 +63,7 @@ interface EditorState {
   references: ReferenceMeta[]
   targetStats: LabStats | null
   matchStrength: number | null
+  pendingLook: Partial<ControlParams> | null
 
   addPhoto: (meta: PhotoMeta, bitmap: ImageBitmap, bytes?: Blob) => void
   setActive: (id: string) => void
@@ -81,6 +82,8 @@ interface EditorState {
   removeReference: (id: string) => void
   applyMatch: () => void
   setCrop: (crop: CropRect | null) => void
+  applyLook: (look: Partial<ControlParams>) => void
+  setPendingLook: (look: Partial<ControlParams> | null) => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -104,6 +107,10 @@ function scheduleSave(id: string, params: ControlParams, storageOk: boolean): vo
 // and so begin is idempotent across pointer+focus+keydown firing for one gesture.
 let scrub: { key: ControlKey; before: number } | null = null
 
+// Supersede an in-flight match/look animation when a new one starts (prevents two
+// rAF loops fighting over the same photo's params).
+let animToken = 0
+
 export const useEditor = create<EditorState>()((set, get) => ({
   photos: {},
   order: [],
@@ -115,6 +122,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   references: [],
   targetStats: null,
   matchStrength: null,
+  pendingLook: null,
 
   addPhoto: (meta, bitmap, bytes) => {
     images.set(meta.id, { bitmap, width: meta.width, height: meta.height })
@@ -262,6 +270,26 @@ export const useEditor = create<EditorState>()((set, get) => ({
     pushCommand(set, get, activeId, { crop: before }, { crop })
   },
 
+  applyLook: (look) => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const keys = Object.keys(look) as DevelopKey[]
+    if (keys.length === 0) {
+      set({ pendingLook: null })
+      return
+    }
+    const before: Partial<ControlParams> = {}
+    const after: Partial<ControlParams> = {}
+    for (const k of keys) {
+      before[k] = edits[activeId][k]
+      after[k] = look[k] as number
+    }
+    set({ pendingLook: null })
+    animateMatch(set, get, activeId, before, after) // same signature fill-in as a match
+  },
+
+  setPendingLook: (look) => set({ pendingLook: look }),
+
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))
     const photoMap: Record<string, PhotoMeta> = {}
@@ -321,6 +349,7 @@ function animateMatch(
   after: Partial<ControlParams>,
 ): void {
   const keys = Object.keys(after) as DevelopKey[]
+  const myToken = ++animToken // supersede any animation already running
   const commit = () => pushCommand(set, get, id, before, after)
   const reduce =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -334,6 +363,7 @@ function animateMatch(
   const STAGGER = 30
   const t0 = performance.now()
   const tick = (now: number): void => {
+    if (myToken !== animToken) return // a newer match/look apply superseded this one
     const t = now - t0
     const { edits, activeId } = get()
     if (activeId !== id) return // photo switched mid-animation: abort

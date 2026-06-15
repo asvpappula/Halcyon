@@ -6,6 +6,7 @@ import { ExportDialog } from './ExportDialog'
 import { useEditor } from '../store/editor'
 import { loadImageFile } from './import'
 import { centeredCrop } from '../engine/crop'
+import { buildLookUrl } from '../engine/look'
 
 const CROP_PRESETS: [string, number, number][] = [
   ['1:1', 1, 1],
@@ -46,6 +47,7 @@ function TopButton({
 export function Editor() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
   const addPhoto = useEditor((s) => s.addPhoto)
   const undo = useEditor((s) => s.undo)
   const redo = useEditor((s) => s.redo)
@@ -59,6 +61,21 @@ export function Editor() {
   const canRedo = !!hist && hist.cursor < hist.stack.length
   const setCrop = useEditor((s) => s.setCrop)
   const activeCrop = useEditor((s) => (s.activeId ? s.edits[s.activeId].crop : null))
+  const pendingLook = useEditor((s) => s.pendingLook)
+  const applyLook = useEditor((s) => s.applyLook)
+  const setPendingLook = useEditor((s) => s.setPendingLook)
+
+  const shareLook = async () => {
+    if (!activeId) return
+    const url = buildLookUrl(useEditor.getState().edits[activeId])
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      /* clipboard blocked; the URL is still in-app */
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1800)
+  }
 
   const onFiles = async (files: FileList | null) => {
     if (!files) return
@@ -125,6 +142,22 @@ export function Editor() {
         />
       </header>
 
+      {pendingLook && (
+        <div className="flex items-center justify-center gap-3 border-b border-hairline bg-accent-subtle px-4 py-2 text-xs text-fg">
+          <span>A shared look is ready{!activeId ? ' — import a photo to apply it' : ''}.</span>
+          <button
+            disabled={!activeId}
+            onClick={() => applyLook(pendingLook)}
+            className="rounded-md border border-accent px-2 py-1 text-accent transition-colors hover:bg-accent-subtle disabled:opacity-40"
+          >
+            Apply
+          </button>
+          <button onClick={() => setPendingLook(null)} className="text-fg-muted hover:text-fg">
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* body */}
       <div className="flex min-h-0 flex-1">
         <ReferenceTray />
@@ -169,7 +202,14 @@ export function Editor() {
             ))}
           </div>
 
-          <p className="mt-5 text-[11px] leading-relaxed text-fg-faint">
+          <button
+            onClick={shareLook}
+            disabled={!activeId}
+            className="mt-5 w-full rounded-md border border-hairline px-3 py-1.5 text-xs text-fg-dim transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {copied ? 'Link copied' : 'Share this look'}
+          </button>
+          <p className="mt-3 text-[11px] leading-relaxed text-fg-faint">
             Drop a reference look on the left, then Apply match. Double-click any slider to reset.
           </p>
         </aside>

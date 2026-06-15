@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Editor } from './ui/Editor'
 import { useEditor, flushPendingSaves, type PhotoMeta } from './store/editor'
 import { loadAll, storageAvailable } from './persist/db'
+import { readLookFromUrl } from './engine/look'
 import { DEFAULT_PARAMS, type ControlParams } from './engine/types'
 
 // Module-level guard: load persisted data exactly once, even under StrictMode's
@@ -78,6 +79,12 @@ export default function App() {
       window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', onVis)
     }
+  }, [])
+
+  // A shared look in the URL becomes a pending offer to apply.
+  useEffect(() => {
+    const look = readLookFromUrl()
+    if (look) useEditor.getState().setPendingLook(look)
   }, [])
 
   return (
