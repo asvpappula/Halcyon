@@ -6,7 +6,7 @@ import type { ControlParams } from './types'
 import { DEFAULT_PARAMS } from './types'
 import { VERT, FRAG } from './shaders'
 
-const PARAM_MAP: [keyof ControlParams, string][] = [
+export const PARAM_MAP: [keyof ControlParams, string][] = [
   ['exposure', 'uExposure'],
   ['contrast', 'uContrast'],
   ['highlights', 'uHighlights'],

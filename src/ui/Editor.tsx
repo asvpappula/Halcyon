@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CanvasView } from './CanvasView'
 import { Slider } from './Slider'
 import { ReferenceTray } from './ReferenceTray'
+import { ExportDialog } from './ExportDialog'
 import { useEditor } from '../store/editor'
 import { loadImageFile } from './import'
 
@@ -32,6 +33,7 @@ function TopButton({
 
 export function Editor() {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [exportOpen, setExportOpen] = useState(false)
   const addPhoto = useEditor((s) => s.addPhoto)
   const undo = useEditor((s) => s.undo)
   const redo = useEditor((s) => s.redo)
@@ -93,8 +95,11 @@ export function Editor() {
         <TopButton onClick={resetView} title="Reset view (0)">
           Reset view
         </TopButton>
-        <TopButton primary onClick={() => fileRef.current?.click()} title="Import photos">
+        <TopButton onClick={() => fileRef.current?.click()} title="Import photos">
           Import
+        </TopButton>
+        <TopButton primary disabled={!activeId} onClick={() => setExportOpen(true)} title="Export">
+          Export
         </TopButton>
         <input
           ref={fileRef}
@@ -150,6 +155,8 @@ export function Editor() {
           ))}
         </footer>
       )}
+
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
     </div>
   )
 }
