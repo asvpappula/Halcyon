@@ -2,7 +2,13 @@
 
 Deferred from the CEO review on 2026-06-14 (Selective Expansion). The MVP perimeter is the wedge (P1 engine + P2 hero, usable end-to-end). Everything below is **post-validation**: build only after the free funnel shows real pull from content-creator / mood-board users.
 
-## Phase 2 — IN PROGRESS (resume here)
+## Phase 2 — COMPLETE (wedge shipped)
+All wedge features built, verified in-browser, and committed: reference-match (hero) + signature
+animation, export (JPEG/PNG/WebP + resize), crop/aspect, per-image batch normalization, share link,
+funnel landing, mood-board multi-reference. Commits: 2775469, 998f1f6, ff5e525, 788257d, 795983c, 9bc39e2.
+Before "ship": end gates (a formal /review of the Phase 2 diff; /ship needs a GitHub remote).
+Original per-feature build notes follow.
+
 Built + verified + committed: the single-photo wedge end-to-end (import → reference-match → tune → export).
 - Commits: `2775469` (P1 foundation + hero match), `998f1f6` (export).
 - Layout: engine `src/engine/`, store `src/store/editor.ts`, UI `src/ui/`, export `src/engine/export.ts`.
