@@ -2,7 +2,13 @@
 // coalesce to one command), debounced IndexedDB persistence. docs/ARCHITECTURE.md §3.
 
 import { create } from 'zustand'
-import { DEFAULT_PARAMS, type ControlParams, type LabStats } from '../engine/types'
+import {
+  DEFAULT_PARAMS,
+  type ControlParams,
+  type CropRect,
+  type DevelopKey,
+  type LabStats,
+} from '../engine/types'
 import { DEFAULT_VIEW, type View } from '../engine/pipeline'
 import { computeMatch, computeTargetStats, type MatchParams } from '../engine/match'
 import { persistEdit, persistPhoto, type PhotoRow } from '../persist/db'
@@ -34,7 +40,8 @@ export interface ReferenceMeta {
   url: string // object URL for the thumbnail
 }
 
-export type ControlKey = keyof ControlParams
+// Numeric develop controls only (crop is geometry, edited via setCrop, not a slider).
+export type ControlKey = Exclude<keyof ControlParams, 'crop'>
 
 interface Command {
   before: Partial<ControlParams>
@@ -73,6 +80,7 @@ interface EditorState {
   addReference: (id: string, name: string, bitmap: ImageBitmap, url: string) => void
   removeReference: (id: string) => void
   applyMatch: () => void
+  setCrop: (crop: CropRect | null) => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -245,6 +253,15 @@ export const useEditor = create<EditorState>()((set, get) => ({
     animateMatch(set, get, activeId, before, after)
   },
 
+  setCrop: (crop) => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const before = edits[activeId].crop
+    const next = { ...edits[activeId], crop }
+    set({ edits: { ...edits, [activeId]: next } })
+    pushCommand(set, get, activeId, { crop: before }, { crop })
+  },
+
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))
     const photoMap: Record<string, PhotoMeta> = {}
@@ -303,7 +320,7 @@ function animateMatch(
   before: Partial<ControlParams>,
   after: Partial<ControlParams>,
 ): void {
-  const keys = Object.keys(after) as (keyof ControlParams)[]
+  const keys = Object.keys(after) as DevelopKey[]
   const commit = () => pushCommand(set, get, id, before, after)
   const reduce =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches

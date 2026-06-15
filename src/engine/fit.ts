@@ -2,7 +2,13 @@
 // Lab statistics approximate a target. Fits against the analytic forward model
 // (engine/ops.ts) on a small proxy — NO GPU readback. docs/ENGINE-SPEC.md.
 
-import { DEFAULT_PARAMS, type ControlParams, type LabStats, type LinearRGB } from './types'
+import {
+  DEFAULT_PARAMS,
+  type ControlParams,
+  type DevelopKey,
+  type LabStats,
+  type LinearRGB,
+} from './types'
 import { clamp, deltaE2000, labToLinearRgb, linearRgbToLab } from './color'
 import { statsAfterParams } from './stats'
 
@@ -47,8 +53,8 @@ function goldenMin(f: (x: number) => number, lo: number, hi: number, iters: numb
  *  stay at default and are the user's to tune. */
 export function fitMatch(source: LinearRGB[], target: LabStats): ControlParams {
   const p: ControlParams = { ...DEFAULT_PARAMS }
-  const order: (keyof ControlParams)[] = ['exposure', 'temp', 'tint', 'contrast', 'saturation']
-  const lossAt = (key: keyof ControlParams, v: number): number => {
+  const order: DevelopKey[] = ['exposure', 'temp', 'tint', 'contrast', 'saturation']
+  const lossAt = (key: DevelopKey, v: number): number => {
     const cand = { ...p, [key]: v }
     return statDist(statsAfterParams(source, cand), target)
   }

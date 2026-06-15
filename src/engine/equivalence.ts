@@ -7,7 +7,7 @@
 import { buildProgram } from './pipeline'
 import { applyParams } from './ops'
 import { clamp, deltaE2000, linearRgbToLab, srgbToLinear, linearToSrgb } from './color'
-import { DEFAULT_PARAMS, type ControlParams, type LinearRGB } from './types'
+import { DEFAULT_PARAMS, type ControlParams, type DevelopKey, type LinearRGB } from './types'
 
 export interface EquivResult {
   median: number
@@ -16,7 +16,7 @@ export interface EquivResult {
   pass: boolean
 }
 
-const PMAP: [keyof ControlParams, string][] = [
+const PMAP: [DevelopKey, string][] = [
   ['exposure', 'uExposure'],
   ['contrast', 'uContrast'],
   ['highlights', 'uHighlights'],
@@ -91,7 +91,7 @@ export function runEquivalenceCheck(trials = 8): EquivResult {
   const des: number[] = []
   for (let t = 0; t < trials; t++) {
     const p: ControlParams = { ...DEFAULT_PARAMS }
-    for (const k of Object.keys(p) as (keyof ControlParams)[]) p[k] = rnd() * 60
+    for (const [k] of PMAP) p[k] = rnd() * 60
     for (const [key, name] of PMAP) gl.uniform1f(gl.getUniformLocation(prog, name), p[key])
     gl.clear(gl.COLOR_BUFFER_BIT)
     gl.drawArrays(gl.TRIANGLES, 0, 6)

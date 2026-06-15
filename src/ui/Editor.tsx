@@ -5,6 +5,18 @@ import { ReferenceTray } from './ReferenceTray'
 import { ExportDialog } from './ExportDialog'
 import { useEditor } from '../store/editor'
 import { loadImageFile } from './import'
+import { centeredCrop } from '../engine/crop'
+
+const CROP_PRESETS: [string, number, number][] = [
+  ['1:1', 1, 1],
+  ['4:5', 4, 5],
+  ['16:9', 16, 9],
+  ['3:2', 3, 2],
+]
+const cropBtnClass = (active: boolean) =>
+  `rounded-md border px-2.5 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+    active ? 'border-accent text-accent' : 'border-hairline text-fg-dim hover:bg-hover'
+  }`
 
 function TopButton({
   children,
@@ -45,6 +57,8 @@ export function Editor() {
   const hist = useEditor((s) => (s.activeId ? s.history[s.activeId] : undefined))
   const canUndo = !!hist && hist.cursor > 0
   const canRedo = !!hist && hist.cursor < hist.stack.length
+  const setCrop = useEditor((s) => s.setCrop)
+  const activeCrop = useEditor((s) => (s.activeId ? s.edits[s.activeId].crop : null))
 
   const onFiles = async (files: FileList | null) => {
     if (!files) return
@@ -130,6 +144,31 @@ export function Editor() {
           <Slider label="Tint" ck="tint" />
           <Slider label="Vibrance" ck="vibrance" />
           <Slider label="Saturation" ck="saturation" />
+
+          <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Crop</div>
+          <div className="flex flex-wrap gap-1">
+            <button
+              disabled={!activeId}
+              onClick={() => setCrop(null)}
+              className={cropBtnClass(!activeCrop)}
+            >
+              Original
+            </button>
+            {CROP_PRESETS.map(([label, aw, ah]) => (
+              <button
+                key={label}
+                disabled={!activeId}
+                onClick={() => {
+                  const p = activeId ? photos[activeId] : null
+                  if (p) setCrop(centeredCrop(p.width, p.height, aw, ah))
+                }}
+                className={cropBtnClass(false)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <p className="mt-5 text-[11px] leading-relaxed text-fg-faint">
             Drop a reference look on the left, then Apply match. Double-click any slider to reset.
           </p>

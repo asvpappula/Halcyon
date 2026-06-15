@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { DevelopRenderer } from '../engine/pipeline'
 import { useEditor, getImage } from '../store/editor'
 import { DEFAULT_PARAMS } from '../engine/types'
@@ -15,6 +15,9 @@ export function CanvasView() {
   const activeId = useEditor((s) => s.activeId)
   const params = useEditor((s) => (s.activeId ? s.edits[s.activeId] : DEFAULT_PARAMS))
   const view = useEditor((s) => s.view)
+  const crop = useEditor((s) => (s.activeId ? s.edits[s.activeId].crop : null))
+  const activePhoto = useEditor((s) => (s.activeId ? s.photos[s.activeId] : null))
+  const [size, setSize] = useState({ w: 0, h: 0 })
 
   const requestRender = () => {
     if (rafRef.current != null) return
@@ -52,9 +55,11 @@ export function CanvasView() {
 
     const ro = new ResizeObserver(() => {
       rendererRef.current?.resize()
+      setSize({ w: canvas.clientWidth, h: canvas.clientHeight })
       requestRender()
     })
     ro.observe(canvas)
+    setSize({ w: canvas.clientWidth, h: canvas.clientHeight })
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
@@ -135,8 +140,31 @@ export function CanvasView() {
     )
   }
 
+  // Crop overlay: dim outside the crop, gold border. Geometry tracks contain-fit + zoom/pan.
+  let overlay: CSSProperties | null = null
+  if (crop && activePhoto && size.w > 0 && size.h > 0) {
+    const imgA = activePhoto.width / activePhoto.height
+    const viewA = size.w / size.h
+    const sx = imgA > viewA ? 1 : imgA / viewA
+    const sy = imgA > viewA ? viewA / imgA : 1
+    const dispW = sx * view.zoom * size.w
+    const dispH = sy * view.zoom * size.h
+    const imgLeft = size.w / 2 + view.panX * (size.w / 2) - dispW / 2
+    const imgTop = size.h / 2 - view.panY * (size.h / 2) - dispH / 2
+    overlay = {
+      position: 'absolute',
+      left: imgLeft + crop.x * dispW,
+      top: imgTop + crop.y * dispH,
+      width: crop.w * dispW,
+      height: crop.h * dispH,
+      boxShadow: '0 0 0 9999px rgba(10, 10, 11, 0.55)',
+      outline: '1px solid var(--accent)',
+      pointerEvents: 'none',
+    }
+  }
+
   return (
-    <div className="relative h-full w-full bg-canvas">
+    <div className="relative h-full w-full overflow-hidden bg-canvas">
       <canvas
         ref={canvasRef}
         className="block h-full w-full"
@@ -146,6 +174,7 @@ export function CanvasView() {
         onPointerUp={onPointerUp}
         onDoubleClick={() => useEditor.getState().resetView()}
       />
+      {overlay && <div style={overlay} />}
       {!activeId && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-fg-muted">
           Import a photo to begin

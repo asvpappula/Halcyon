@@ -2,11 +2,11 @@
 // (which mirrors ops.ts), and draws to a canvas with contain-fit + zoom/pan.
 // Renders on demand (no RAF loop). docs/ARCHITECTURE.md §1.
 
-import type { ControlParams } from './types'
+import type { ControlParams, DevelopKey } from './types'
 import { DEFAULT_PARAMS } from './types'
 import { VERT, FRAG } from './shaders'
 
-export const PARAM_MAP: [keyof ControlParams, string][] = [
+export const PARAM_MAP: [DevelopKey, string][] = [
   ['exposure', 'uExposure'],
   ['contrast', 'uContrast'],
   ['highlights', 'uHighlights'],

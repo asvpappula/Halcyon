@@ -1,6 +1,6 @@
-// Full-resolution export: render the source through the same shader at the target size
-// (off-screen, own GL context so the live canvas is untouched), then encode to a Blob.
-// docs/FEATURES.md (P2 export).
+// Full-resolution export: render the source through the same shader at native size
+// (off-screen, own GL context so the live canvas is untouched), then crop + resize in 2D
+// and encode to a Blob. docs/FEATURES.md (P2 export).
 
 import type { ControlParams } from './types'
 import { buildProgram, PARAM_MAP } from './pipeline'
@@ -10,7 +10,7 @@ export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp'
 export interface ExportOptions {
   format: ExportFormat
   quality?: number // 0..1, for jpeg/webp
-  maxEdge?: number // longest-edge cap in px; omitted = original size
+  maxEdge?: number // longest-edge cap in px; omitted = full size
 }
 
 export async function exportPhoto(
@@ -19,18 +19,14 @@ export async function exportPhoto(
   opts: ExportOptions,
 ): Promise<Blob> {
   const { format, quality = 0.92, maxEdge } = opts
-  let w = source.width
-  let h = source.height
-  if (maxEdge && Math.max(w, h) > maxEdge) {
-    const s = maxEdge / Math.max(w, h)
-    w = Math.max(1, Math.round(w * s))
-    h = Math.max(1, Math.round(h * s))
-  }
+  const imgW = source.width
+  const imgH = source.height
 
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  const gl = canvas.getContext('webgl2', {
+  // 1) Render the full image through the develop shader at native resolution.
+  const glCanvas = document.createElement('canvas')
+  glCanvas.width = imgW
+  glCanvas.height = imgH
+  const gl = glCanvas.getContext('webgl2', {
     preserveDrawingBuffer: true,
     antialias: false,
     premultipliedAlpha: false,
@@ -61,16 +57,41 @@ export async function exportPhoto(
 
   gl.useProgram(prog)
   gl.uniform1i(gl.getUniformLocation(prog, 'uImage'), 0)
-  gl.uniform2f(gl.getUniformLocation(prog, 'uScale'), 1, 1) // fill the export canvas, no letterbox
+  gl.uniform2f(gl.getUniformLocation(prog, 'uScale'), 1, 1)
   gl.uniform2f(gl.getUniformLocation(prog, 'uOffset'), 0, 0)
   for (const [key, name] of PARAM_MAP) gl.uniform1f(gl.getUniformLocation(prog, name), params[key])
 
-  gl.viewport(0, 0, w, h)
+  gl.viewport(0, 0, imgW, imgH)
   gl.clearColor(0, 0, 0, 1)
   gl.clear(gl.COLOR_BUFFER_BIT)
   gl.drawArrays(gl.TRIANGLES, 0, 6)
 
-  const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, format, quality))
+  // 2) Crop region (px), top-left origin.
+  const crop = params.crop
+  const sx = crop ? Math.round(crop.x * imgW) : 0
+  const sy = crop ? Math.round(crop.y * imgH) : 0
+  const sw = crop ? Math.max(1, Math.round(crop.w * imgW)) : imgW
+  const sh = crop ? Math.max(1, Math.round(crop.h * imgH)) : imgH
+
+  // 3) Output dims after longest-edge resize.
+  let outW = sw
+  let outH = sh
+  if (maxEdge && Math.max(sw, sh) > maxEdge) {
+    const s = maxEdge / Math.max(sw, sh)
+    outW = Math.max(1, Math.round(sw * s))
+    outH = Math.max(1, Math.round(sh * s))
+  }
+
+  // 4) Crop + resize in 2D, then encode.
+  const out = document.createElement('canvas')
+  out.width = outW
+  out.height = outH
+  const ctx = out.getContext('2d')
+  if (!ctx) throw new Error('2D context unavailable for export')
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(glCanvas, sx, sy, sw, sh, 0, 0, outW, outH)
+
+  const blob = await new Promise<Blob | null>((res) => out.toBlob(res, format, quality))
 
   gl.deleteTexture(tex)
   gl.deleteBuffer(buf)
