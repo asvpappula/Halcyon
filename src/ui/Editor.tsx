@@ -3,6 +3,7 @@ import { CanvasView } from './CanvasView'
 import { Slider } from './Slider'
 import { ReferenceTray } from './ReferenceTray'
 import { ExportDialog } from './ExportDialog'
+import { FunnelHero } from './FunnelHero'
 import { useEditor } from '../store/editor'
 import { loadImageFile } from './import'
 import { centeredCrop } from '../engine/crop'
@@ -165,7 +166,12 @@ export function Editor() {
         </div>
       )}
 
-      {/* body */}
+      {/* body — funnel landing until the first photo is imported */}
+      {order.length === 0 ? (
+        <div className="min-h-0 flex-1">
+          <FunnelHero />
+        </div>
+      ) : (
       <div className="flex min-h-0 flex-1">
         <ReferenceTray />
         <main className="min-w-0 flex-1">
@@ -221,6 +227,7 @@ export function Editor() {
           </p>
         </aside>
       </div>
+      )}
 
       {/* filmstrip + batch controls (when multiple imported) */}
       {order.length > 1 && (
