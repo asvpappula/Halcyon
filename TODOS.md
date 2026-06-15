@@ -2,6 +2,20 @@
 
 Deferred from the CEO review on 2026-06-14 (Selective Expansion). The MVP perimeter is the wedge (P1 engine + P2 hero, usable end-to-end). Everything below is **post-validation**: build only after the free funnel shows real pull from content-creator / mood-board users.
 
+## Phase 2 — IN PROGRESS (resume here)
+Built + verified + committed: the single-photo wedge end-to-end (import → reference-match → tune → export).
+- Commits: `2775469` (P1 foundation + hero match), `998f1f6` (export).
+- Layout: engine `src/engine/`, store `src/store/editor.ts`, UI `src/ui/`, export `src/engine/export.ts`.
+- DEV QA hook: `window.__editor` (the store). Tests: `npm test` (13 green). Gates: fidelity (CI, `fit.test.ts`) + shader↔forward-model equivalence (in-browser badge, `equivalence.ts`), both green.
+- Known: `ops.ts` and `shaders.ts` are the single source of truth pair — edit both together or the equivalence gate fails (by design).
+
+Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
+- [ ] **Crop / aspect** — add `crop: CropRect|null` to `ControlParams` (fit/ops ignore it); aspect presets (1:1, 4:5, 16:9, 3:2, Original) set a centered rect as one command; live overlay rect on the canvas (use the renderer's contain-fit rect at zoom 1); export honors crop by 2D-cropping the full render before resize/encode (no shader change).
+- [ ] **Batch-to-selection** — multi-select in the filmstrip; Web Worker pool (`hardwareConcurrency-1`); each worker runs `computeMatch(bitmap, targetStats)` per image (= the per-image normalization, ARCHITECTURE §2); determinate progress; one grouped undo; transfer via `ImageBitmap`.
+- [ ] **Funnel shell** — no-login route that *is* the tool (clean minimal shell; the cinematic GSAP/Three.js landing is its own later task, below).
+- [ ] **Share link** — v1: encode the look (`ControlParams`) in a URL hash to pre-load + apply to your own photo. (True before/after image URL needs the deferred Supabase storage.)
+- [ ] Then Phase 2 end gates: /review → /qa → /ship → land-and-deploy → canary.
+
 ## Cherry-picked but deferred (cheap, do soon after launch)
 - [ ] **Save / reuse a look** — persist a created look (anon localStorage first), reapply across shoots. Retention win for repeat brand work.
 - [ ] **Full batch "needs attention" flags** — per-image flags in batch view when normalization/fit is weak. (Match-strength readout itself ships in P2; this is the richer flag UI.)
