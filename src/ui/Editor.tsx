@@ -64,6 +64,13 @@ export function Editor() {
   const pendingLook = useEditor((s) => s.pendingLook)
   const applyLook = useEditor((s) => s.applyLook)
   const setPendingLook = useEditor((s) => s.setPendingLook)
+  const selection = useEditor((s) => s.selection)
+  const batchProgress = useEditor((s) => s.batchProgress)
+  const toggleSelect = useEditor((s) => s.toggleSelect)
+  const selectAll = useEditor((s) => s.selectAll)
+  const clearSelect = useEditor((s) => s.clearSelect)
+  const applyMatchToSelection = useEditor((s) => s.applyMatchToSelection)
+  const targetStats = useEditor((s) => s.targetStats)
 
   const shareLook = async () => {
     if (!activeId) return
@@ -215,23 +222,64 @@ export function Editor() {
         </aside>
       </div>
 
-      {/* filmstrip (only when multiple imported) */}
+      {/* filmstrip + batch controls (when multiple imported) */}
       {order.length > 1 && (
-        <footer className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-t border-hairline bg-panel px-3">
-          {order.map((id) => (
+        <footer className="flex h-14 shrink-0 items-center gap-3 border-t border-hairline bg-panel px-3">
+          <div className="flex shrink-0 items-center gap-2">
             <button
-              key={id}
-              onClick={() => setActive(id)}
-              className={`shrink-0 rounded-md border px-3 py-1.5 text-xs ${
-                id === activeId
-                  ? 'border-accent text-fg'
-                  : 'border-hairline text-fg-muted hover:bg-raised'
-              }`}
-              title={photos[id]?.name}
+              onClick={selection.length === order.length ? clearSelect : selectAll}
+              className="rounded-md border border-hairline px-2 py-1 text-[11px] text-fg-dim transition-colors hover:bg-hover"
             >
-              {photos[id]?.name.slice(0, 18) ?? id.slice(0, 6)}
+              {selection.length === order.length ? 'Clear' : 'Select all'}
             </button>
-          ))}
+            {selection.length > 0 &&
+              (batchProgress ? (
+                <span className="tnum text-[11px] text-fg-dim">
+                  Matching {batchProgress.done}/{batchProgress.total}…
+                </span>
+              ) : (
+                <button
+                  onClick={applyMatchToSelection}
+                  disabled={!targetStats}
+                  className="rounded-md border border-accent px-2 py-1 text-[11px] text-accent transition-colors hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-40"
+                  title={targetStats ? undefined : 'Add a reference look first'}
+                >
+                  Apply match to {selection.length}
+                </button>
+              ))}
+          </div>
+          <div className="flex flex-1 items-center gap-2 overflow-x-auto">
+            {order.map((id) => {
+              const sel = selection.includes(id)
+              return (
+                <div
+                  key={id}
+                  className={`flex shrink-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs ${
+                    id === activeId ? 'border-accent' : 'border-hairline'
+                  }`}
+                >
+                  <button
+                    onClick={() => toggleSelect(id)}
+                    aria-label={sel ? 'Deselect' : 'Select'}
+                    className={`grid h-4 w-4 place-items-center rounded border text-[10px] leading-none ${
+                      sel
+                        ? 'border-accent bg-accent-subtle text-accent'
+                        : 'border-hairline-strong text-transparent'
+                    }`}
+                  >
+                    x
+                  </button>
+                  <button
+                    onClick={() => setActive(id)}
+                    className={id === activeId ? 'text-fg' : 'text-fg-muted hover:text-fg'}
+                    title={photos[id]?.name}
+                  >
+                    {photos[id]?.name.slice(0, 16) ?? id.slice(0, 6)}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </footer>
       )}
 

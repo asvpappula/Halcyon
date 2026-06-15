@@ -64,6 +64,8 @@ interface EditorState {
   targetStats: LabStats | null
   matchStrength: number | null
   pendingLook: Partial<ControlParams> | null
+  selection: string[]
+  batchProgress: { done: number; total: number } | null
 
   addPhoto: (meta: PhotoMeta, bitmap: ImageBitmap, bytes?: Blob) => void
   setActive: (id: string) => void
@@ -84,6 +86,10 @@ interface EditorState {
   setCrop: (crop: CropRect | null) => void
   applyLook: (look: Partial<ControlParams>) => void
   setPendingLook: (look: Partial<ControlParams> | null) => void
+  toggleSelect: (id: string) => void
+  selectAll: () => void
+  clearSelect: () => void
+  applyMatchToSelection: () => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -123,6 +129,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
   targetStats: null,
   matchStrength: null,
   pendingLook: null,
+  selection: [],
+  batchProgress: null,
 
   addPhoto: (meta, bitmap, bytes) => {
     images.set(meta.id, { bitmap, width: meta.width, height: meta.height })
@@ -289,6 +297,52 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   setPendingLook: (look) => set({ pendingLook: look }),
+
+  toggleSelect: (id) =>
+    set((s) => ({
+      selection: s.selection.includes(id)
+        ? s.selection.filter((x) => x !== id)
+        : [...s.selection, id],
+    })),
+  selectAll: () => set((s) => ({ selection: [...s.order] })),
+  clearSelect: () => set({ selection: [] }),
+
+  // Apply the matched look to every selected photo, fitting EACH to the SAME target
+  // (per-image normalization). Chunked + yielding so the UI stays responsive; one undo
+  // command per photo. (Worker-offloading for very large batches is a perf follow-up.)
+  applyMatchToSelection: () => {
+    const start = get()
+    if (!start.targetStats || start.selection.length === 0 || start.batchProgress) return
+    const ids = [...start.selection]
+    const target = start.targetStats
+    set({ batchProgress: { done: 0, total: ids.length } })
+    void (async () => {
+      for (let i = 0; i < ids.length; i++) {
+        const pid = ids[i]
+        const img = getImage(pid)
+        const cur = get().edits[pid]
+        if (img && cur) {
+          try {
+            const { params: fitted } = computeMatch(img.bitmap, target)
+            const before: Partial<ControlParams> = {}
+            const after: Partial<ControlParams> = {}
+            ;(Object.keys(fitted) as (keyof MatchParams)[]).forEach((k) => {
+              before[k] = cur[k]
+              after[k] = Math.round(fitted[k]) // batch sets directly (no animation), so round here
+            })
+            const edits = get().edits
+            set({ edits: { ...edits, [pid]: { ...edits[pid], ...after } } })
+            pushCommand(set, get, pid, before, after)
+          } catch {
+            /* skip an image that fails to fit; continue the batch */
+          }
+        }
+        set({ batchProgress: { done: i + 1, total: ids.length } })
+        await new Promise((r) => setTimeout(r, 0)) // yield to keep the UI responsive
+      }
+      set({ batchProgress: null })
+    })()
+  },
 
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))
