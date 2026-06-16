@@ -80,6 +80,7 @@ export function Editor() {
   const pasteSettings = useEditor((s) => s.pasteSettings)
   const pasteToSelection = useEditor((s) => s.pasteToSelection)
   const clipboard = useEditor((s) => s.clipboard)
+  const setCompare = useEditor((s) => s.setCompare)
 
   const doCopy = () => {
     copySettings()
@@ -129,6 +130,26 @@ export function Editor() {
     return () => window.removeEventListener('keydown', onKey)
   }, [undo, redo, resetView])
 
+  // Hold "\" to compare against the original (press-and-hold, like Lightroom).
+  useEffect(() => {
+    const setC = useEditor.getState().setCompare
+    const down = (e: KeyboardEvent) => {
+      if (e.key === '\\') {
+        e.preventDefault()
+        setC(true)
+      }
+    }
+    const up = (e: KeyboardEvent) => {
+      if (e.key === '\\') setC(false)
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [])
+
   return (
     <div className="flex h-full flex-col">
       {/* top bar */}
@@ -153,6 +174,16 @@ export function Editor() {
         >
           Paste
         </TopButton>
+        <button
+          onPointerDown={() => setCompare(true)}
+          onPointerUp={() => setCompare(false)}
+          onPointerLeave={() => setCompare(false)}
+          disabled={!activeId}
+          title="Hold to see the original (or hold \ )"
+          className="rounded-md border border-hairline px-3 py-1.5 text-xs text-fg-dim transition-colors hover:bg-raised disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Before
+        </button>
         <TopButton onClick={resetView} title="Reset view (0)">
           Reset view
         </TopButton>

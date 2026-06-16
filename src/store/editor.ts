@@ -88,6 +88,7 @@ interface EditorState {
   batchProgress: { done: number; total: number } | null
   userPresets: Preset[]
   clipboard: Partial<ControlParams> | null
+  compare: boolean // while true, the canvas renders the unedited original
 
   addPhoto: (meta: PhotoMeta, bitmap: ImageBitmap, bytes?: Blob) => void
   setActive: (id: string) => void
@@ -127,6 +128,7 @@ interface EditorState {
   copySettings: () => void
   pasteSettings: () => void
   pasteToSelection: () => void
+  setCompare: (on: boolean) => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -192,6 +194,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   batchProgress: null,
   userPresets: loadUserPresets(),
   clipboard: null,
+  compare: false,
 
   addPhoto: (meta, bitmap, bytes) => {
     images.set(meta.id, { bitmap, width: meta.width, height: meta.height })
@@ -570,6 +573,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
     if (!clipboard || selection.length === 0) return
     for (const id of selection) pasteClip(set, get, id, clipboard)
   },
+
+  setCompare: (on) => set({ compare: on }),
 
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))

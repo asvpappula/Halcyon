@@ -14,6 +14,7 @@ export function CanvasView() {
 
   const activeId = useEditor((s) => s.activeId)
   const params = useEditor((s) => (s.activeId ? s.edits[s.activeId] : DEFAULT_PARAMS))
+  const compare = useEditor((s) => s.compare)
   const view = useEditor((s) => s.view)
   const crop = useEditor((s) => (s.activeId ? s.edits[s.activeId].crop : null))
   const activePhoto = useEditor((s) => (s.activeId ? s.photos[s.activeId] : null))
@@ -106,14 +107,15 @@ export function CanvasView() {
     requestRender()
   }, [activeId])
 
-  // Params / view changed -> re-render.
+  // Params / view / compare changed -> re-render. While comparing, draw the
+  // unedited original (DEFAULT_PARAMS) so the user sees exactly what the edit did.
   useEffect(() => {
     const r = rendererRef.current
     if (!r) return
-    r.setParams(params)
+    r.setParams(compare ? DEFAULT_PARAMS : params)
     r.setView(view)
     requestRender()
-  }, [params, view])
+  }, [params, view, compare])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (view.zoom <= 1) return
@@ -178,6 +180,11 @@ export function CanvasView() {
         onDoubleClick={() => useEditor.getState().resetView()}
       />
       {overlay && <div style={overlay} />}
+      {compare && activeId && (
+        <div className="pointer-events-none absolute left-3 top-3 rounded border border-hairline bg-raised px-2 py-1 text-[11px] tracking-wide text-fg-dim">
+          Before
+        </div>
+      )}
       {!activeId && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-fg-muted">
           Import a photo to begin

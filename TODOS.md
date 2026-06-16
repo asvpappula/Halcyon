@@ -48,6 +48,7 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 ## Launch prep
 - [x] Netlify deploy config (`netlify.toml` + `public/_redirects`), README, pushed to GitHub (asvpappula/Halcyon).
 - [x] Replace blocking `alert()`/`prompt()` with a toast system (`store/toast.ts` + `ui/Toaster.tsx`) and an inline preset-name input.
+- [x] Before/after compare — hold the "Before" button or `\` to render the unedited original (serves the "I saw exactly what it did" north star).
 - [ ] Connect repo to Netlify + first deploy (needs user action — accounts/credentials).
 
 ## Accounts + backend (only when persistence/teams are demanded)
