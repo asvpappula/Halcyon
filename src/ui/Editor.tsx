@@ -308,10 +308,19 @@ export function Editor() {
 
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Detail</div>
           <Slider label="Sharpen" ck="sharpen" min={0} />
+          <Slider label="Radius" ck="sharpenRadius" min={0} />
+          <Slider label="Detail" ck="sharpenDetail" min={0} />
+          <Slider label="Masking" ck="sharpenMasking" min={0} />
           <Slider label="Noise" ck="noiseReduction" min={0} />
+          <Slider label="Color NR" ck="colorNoiseReduction" min={0} />
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Effects</div>
           <Slider label="Vignette" ck="vignette" />
+          <Slider label="Midpoint" ck="vignetteMidpoint" min={0} />
+          <Slider label="Feather" ck="vignetteFeather" min={0} />
+          <Slider label="Roundness" ck="vignetteRoundness" />
           <Slider label="Grain" ck="grain" min={0} />
+          <Slider label="Size" ck="grainSize" min={0} />
+          <Slider label="Roughness" ck="grainRoughness" min={0} />
 
           <div className="mt-5">
             <CurveEditor />

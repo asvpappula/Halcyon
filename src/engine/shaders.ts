@@ -23,6 +23,8 @@ uniform float uHslHue[8];
 uniform float uHslSat[8];
 uniform float uHslLum[8];
 uniform float uSharpen, uNoiseReduction, uVignette, uGrain;
+uniform float uSharpenRadius, uSharpenDetail, uSharpenMasking, uColorNoiseReduction;
+uniform float uVignetteMidpoint, uVignetteFeather, uVignetteRoundness, uGrainSize, uGrainRoughness;
 uniform float uTexture, uClarity, uDehaze; // Presence (render-only)
 uniform vec3 uCgSh, uCgMid, uCgHi; // color grading per region: [hue 0..360, sat 0..100, lum -100..100]
 uniform float uCgBalance; // -100..100 pivot shift
@@ -171,27 +173,50 @@ void main() {
     }
   }
 
-  // (8) Detail & Effects — render-only, each gated so 0 = exact identity.
-  // Sharpen and noise reduction share one source-space high-pass: tone ops are mostly
-  // low-frequency, so the source's high frequencies approximate the developed image's.
-  if ((uSharpen > 0.0 || uNoiseReduction > 0.0) && uTexel.x > 0.0) {
+  // (8) Detail & Effects — render-only, each gated so 0 = exact identity. The high-pass
+  // is computed in source space: tone ops are mostly low-frequency, so the source's high
+  // frequencies approximate the developed image's.
+  // Sharpen — radius-scaled high-pass, detail emphasis, optional edge masking.
+  if (uSharpen > 0.0 && uTexel.x > 0.0) {
+    float rad = 1.0 + (uSharpenRadius / 100.0) * 2.5;
+    vec2 ox = vec2(uTexel.x * rad, 0.0), oy = vec2(0.0, uTexel.y * rad);
     vec3 c0 = linSample(vUv);
+    vec3 blur = 0.25 * (linSample(vUv + ox) + linSample(vUv - ox) + linSample(vUv + oy) + linSample(vUv - oy));
+    float gx = luma(linSample(vUv + ox)) - luma(linSample(vUv - ox));
+    float gy = luma(linSample(vUv + oy)) - luma(linSample(vUv - oy));
+    float mask = mix(1.0, smoothstep(0.0, 0.12, sqrt(gx * gx + gy * gy)), uSharpenMasking / 100.0);
+    c += (c0 - blur) * (uSharpen / 100.0) * (1.5 + uSharpenDetail / 100.0) * mask;
+  }
+  // Luminance noise reduction — pull luma toward the neighborhood average.
+  if (uNoiseReduction > 0.0 && uTexel.x > 0.0) {
     vec3 blur = 0.25 * (linSample(vUv + vec2(uTexel.x, 0.0)) + linSample(vUv - vec2(uTexel.x, 0.0)) +
                         linSample(vUv + vec2(0.0, uTexel.y)) + linSample(vUv - vec2(0.0, uTexel.y)));
-    vec3 high = c0 - blur;
-    c += high * ((uSharpen - uNoiseReduction) / 100.0) * 1.5;
+    c += vec3(luma(blur) - luma(linSample(vUv))) * (uNoiseReduction / 100.0);
+  }
+  // Color noise reduction — smooth chroma toward the neighborhood, keep luma.
+  if (uColorNoiseReduction > 0.0 && uTexel.x > 0.0) {
+    vec3 blur = 0.25 * (linSample(vUv + vec2(uTexel.x, 0.0)) + linSample(vUv - vec2(uTexel.x, 0.0)) +
+                        linSample(vUv + vec2(0.0, uTexel.y)) + linSample(vUv - vec2(0.0, uTexel.y)));
+    float yc = luma(c);
+    c = vec3(yc) + mix(c - vec3(yc), blur - vec3(luma(blur)), (uColorNoiseReduction / 100.0) * 0.9);
   }
 
-  // Vignette — radial darken (+) or lighten (-) toward the corners.
+  // Vignette — midpoint (inner radius), feather (falloff), roundness (box <-> round).
   if (uVignette != 0.0) {
-    float r = length(vUv - 0.5) * 1.41421356;
-    c *= max(0.0, 1.0 - (uVignette / 100.0) * smoothstep(0.2, 1.0, r));
+    vec2 d2 = abs(vUv - 0.5) * 2.0;
+    float r = mix(max(d2.x, d2.y), length(vUv - 0.5) * 1.41421356, clamp(uVignetteRoundness / 200.0 + 0.5, 0.0, 1.0));
+    float mp = uVignetteMidpoint / 100.0;
+    float fth = 0.05 + (uVignetteFeather / 100.0) * 0.95;
+    c *= max(0.0, 1.0 - (uVignette / 100.0) * smoothstep(mp, mp + fth, r));
   }
 
   // Film grain — monochrome, locked to source pixels so it's stable across zoom/export.
+  // size scales the cell; roughness sharpens the noise distribution.
   if (uGrain > 0.0 && uTexel.x > 0.0) {
-    float g = hash21(floor(vUv / uTexel)) - 0.5;
-    c += vec3(g) * (uGrain / 100.0) * 0.12;
+    float sz = 1.0 + (uGrainSize / 100.0) * 4.0;
+    float n = hash21(floor(vUv / (uTexel * sz))) - 0.5;
+    n = sign(n) * pow(abs(n) * 2.0, mix(1.0, 0.5, uGrainRoughness / 100.0)) * 0.5;
+    c += vec3(n) * (uGrain / 100.0) * 0.12;
   }
 
   vec3 srgb = vec3(linearToSrgb(c.r), linearToSrgb(c.g), linearToSrgb(c.b));

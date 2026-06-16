@@ -30,9 +30,18 @@ export interface ControlParams {
   dehaze: number // -100..100  (veil removal / add)
   // Detail & Effects (render-only; the match fit never sets these). 0 = off.
   sharpen: number // 0..100  (unsharp-mask amount)
+  sharpenRadius: number // 0..100  (tap distance)
+  sharpenDetail: number // 0..100  (fine-detail emphasis)
+  sharpenMasking: number // 0..100  (limit sharpening to edges)
   noiseReduction: number // 0..100  (luminance smoothing)
+  colorNoiseReduction: number // 0..100  (chroma smoothing)
   vignette: number // -100..100  (+ darkens edges, - lightens)
+  vignetteMidpoint: number // 0..100  (inner radius before falloff)
+  vignetteFeather: number // 0..100  (falloff softness)
+  vignetteRoundness: number // -100..100  (box <-> round)
   grain: number // 0..100  (film grain intensity)
+  grainSize: number // 0..100  (grain cell size)
+  grainRoughness: number // 0..100  (noise harshness)
   crop: CropRect | null // geometry, not a develop slider; null = full frame
   // HSL / Color Mixer: 8 bands (Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta),
   // each -100..100. Render-only (the match fit never sets these). null-safe default = zeros.
@@ -78,9 +87,18 @@ export const DEFAULT_PARAMS: ControlParams = {
   clarity: 0,
   dehaze: 0,
   sharpen: 0,
+  sharpenRadius: 50,
+  sharpenDetail: 25,
+  sharpenMasking: 0,
   noiseReduction: 0,
+  colorNoiseReduction: 0,
   vignette: 0,
+  vignetteMidpoint: 50,
+  vignetteFeather: 50,
+  vignetteRoundness: 0,
   grain: 0,
+  grainSize: 25,
+  grainRoughness: 50,
   crop: null,
   hslHue: [0, 0, 0, 0, 0, 0, 0, 0],
   hslSat: [0, 0, 0, 0, 0, 0, 0, 0],
