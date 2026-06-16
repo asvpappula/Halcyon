@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Editor } from './ui/Editor'
 import { Toaster } from './ui/Toaster'
+
+// Lazy so GSAP/Three only load on the landing — never in the editor bundle.
+const Landing = lazy(() => import('./ui/landing/Landing'))
 import { useEditor, flushPendingSaves, type PhotoMeta } from './store/editor'
 import { loadAll, storageAvailable } from './persist/db'
 import { readLookFromUrl } from './engine/look'
@@ -14,6 +17,23 @@ export default function App() {
   const hydrate = useEditor((s) => s.hydrate)
   const setStorageOk = useEditor((s) => s.setStorageOk)
   const [dev, setDev] = useState<string | null>(null)
+  // First-time visitors see the landing; returning users (or a shared-look URL) skip to the app.
+  const [entered, setEntered] = useState(() => {
+    try {
+      if (localStorage.getItem('halcyon.entered') === '1') return true
+    } catch {
+      /* storage blocked — fall through to the look-URL check */
+    }
+    return !!readLookFromUrl()
+  })
+  const enter = () => {
+    try {
+      localStorage.setItem('halcyon.entered', '1')
+    } catch {
+      /* fine — they just see the landing again next time */
+    }
+    setEntered(true)
+  }
 
   // Equivalence gate (DEV only): the shader must match the forward model (ARCHITECTURE §2.1).
   useEffect(() => {
@@ -88,6 +108,14 @@ export default function App() {
     const look = readLookFromUrl()
     if (look) useEditor.getState().setPendingLook(look)
   }, [])
+
+  if (!entered) {
+    return (
+      <Suspense fallback={<div className="grid h-full place-items-center bg-canvas text-fg-faint">…</div>}>
+        <Landing onEnter={enter} />
+      </Suspense>
+    )
+  }
 
   return (
     <div className="h-full">
