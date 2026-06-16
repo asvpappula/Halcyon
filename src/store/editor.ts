@@ -19,7 +19,8 @@ import {
   type CurvePoint,
   type CurveSet,
 } from '../engine/curve'
-import { computeMatch, computeTargetStats, type MatchParams } from '../engine/match'
+import { computeMatch, computeTargetStats, flattenProxy, type MatchParams, type MatchResult } from '../engine/match'
+import { proxyPixels } from '../engine/proxy'
 import { parseCube, type LutRef } from '../engine/lut'
 import {
   persistEdit,
@@ -62,6 +63,33 @@ export interface LutMeta {
 const lutData = new Map<string, { size: number; data: Uint8Array }>()
 export const getLutData = (id: string): { size: number; data: Uint8Array } | undefined =>
   lutData.get(id)
+
+// Batch match runs the coordinate-descent fit in a Web Worker so a large selection
+// never freezes the UI. The main thread extracts the cheap proxy; the worker fits.
+let matchWorker: Worker | null = null
+const pendingFits = new Map<string, (r: MatchResult | null) => void>()
+function fitViaWorker(flat: Float32Array, target: LabStats): Promise<MatchResult | null> {
+  if (!matchWorker) {
+    matchWorker = new Worker(new URL('../engine/match.worker.ts', import.meta.url), { type: 'module' })
+    matchWorker.onmessage = (e: MessageEvent) => {
+      const { id, params, strength, error } = e.data as {
+        id: string
+        params?: MatchParams
+        strength?: number
+        error?: boolean
+      }
+      const resolve = pendingFits.get(id)
+      if (!resolve) return
+      pendingFits.delete(id)
+      resolve(error || !params ? null : { params, strength: strength ?? 0 })
+    }
+  }
+  return new Promise((resolve) => {
+    const id = crypto.randomUUID()
+    pendingFits.set(id, resolve)
+    matchWorker!.postMessage({ id, flat, target }, [flat.buffer])
+  })
+}
 
 export interface ReferenceMeta {
   id: string
@@ -467,8 +495,9 @@ export const useEditor = create<EditorState>()((set, get) => ({
   clearSelect: () => set({ selection: [] }),
 
   // Apply the matched look to every selected photo, fitting EACH to the SAME target
-  // (per-image normalization). Chunked + yielding so the UI stays responsive; one undo
-  // command per photo. (Worker-offloading for very large batches is a perf follow-up.)
+  // (per-image normalization). The fit runs in a Web Worker (off the main thread) so the
+  // UI never freezes; the main thread only extracts the cheap proxy + applies. One undo
+  // command per photo; awaiting the worker yields naturally between photos.
   applyMatchToSelection: () => {
     const start = get()
     if (!start.targetStats || start.selection.length === 0 || start.batchProgress) return
@@ -478,29 +507,32 @@ export const useEditor = create<EditorState>()((set, get) => ({
     set({ batchProgress: { done: 0, total: ids.length } })
     void (async () => {
       try {
-      for (let i = 0; i < ids.length; i++) {
-        const pid = ids[i]
-        const img = getImage(pid)
-        const cur = get().edits[pid]
-        if (img && cur) {
-          try {
-            const { params: fitted } = computeMatch(img.bitmap, target)
-            const before: Partial<ControlParams> = {}
-            const after: Partial<ControlParams> = {}
-            ;(Object.keys(fitted) as (keyof MatchParams)[]).forEach((k) => {
-              before[k] = cur[k]
-              after[k] = Math.round(fitted[k]) // batch sets directly (no animation), so round here
-            })
-            const edits = get().edits
-            set({ edits: { ...edits, [pid]: { ...edits[pid], ...after } } })
-            pushCommand(set, get, pid, before, after)
-          } catch {
-            /* skip an image that fails to fit; continue the batch */
+        for (let i = 0; i < ids.length; i++) {
+          const pid = ids[i]
+          const img = getImage(pid)
+          const cur = get().edits[pid]
+          if (img && cur) {
+            try {
+              const flat = flattenProxy(proxyPixels(img.bitmap))
+              const res = await fitViaWorker(flat, target)
+              if (res) {
+                const fitted = res.params
+                const before: Partial<ControlParams> = {}
+                const after: Partial<ControlParams> = {}
+                ;(Object.keys(fitted) as (keyof MatchParams)[]).forEach((k) => {
+                  before[k] = cur[k]
+                  after[k] = Math.round(fitted[k]) // batch sets directly (no animation)
+                })
+                const edits = get().edits
+                set({ edits: { ...edits, [pid]: { ...edits[pid], ...after } } })
+                pushCommand(set, get, pid, before, after)
+              }
+            } catch {
+              /* skip an image that fails to fit; continue the batch */
+            }
           }
+          set({ batchProgress: { done: i + 1, total: ids.length } })
         }
-        set({ batchProgress: { done: i + 1, total: ids.length } })
-        await new Promise((r) => setTimeout(r, 0)) // yield to keep the UI responsive
-      }
       } finally {
         set({ batchProgress: null }) // never leave the progress guard stuck
       }
