@@ -14,6 +14,7 @@ void main() {
 
 export const FRAG = /* glsl */ `#version 300 es
 precision highp float;
+precision highp sampler3D;
 in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uImage;
@@ -25,6 +26,8 @@ uniform float uSharpen, uNoiseReduction, uVignette, uGrain;
 uniform vec2 uTexel; // 1 / source size, for neighbor taps (0 when effects unused)
 uniform sampler2D uCurve; // 256×1 baked tone-curve LUT (master ∘ per-channel)
 uniform float uCurveActive; // 0 = skip (exact identity), 1 = apply
+uniform sampler3D uLut; // imported 3D LUT volume (bound on texture unit 2)
+uniform float uLutActive, uLutAmount, uLutSize; // 0 = skip; amount 0..100; cube edge size
 
 const float HSL_BANDS[8] = float[8](0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 270.0, 300.0);
 
@@ -146,6 +149,14 @@ void main() {
     srgb.r = texture(uCurve, vec2(srgb.r, 0.5)).r;
     srgb.g = texture(uCurve, vec2(srgb.g, 0.5)).g;
     srgb.b = texture(uCurve, vec2(srgb.b, 0.5)).b;
+  }
+
+  // (10) 3D LUT — trilinear lookup at the display-space color, blended by amount.
+  // Scale coords to texel centers so the cube's endpoints map exactly.
+  if (uLutActive > 0.5) {
+    vec3 cc = clamp(srgb, 0.0, 1.0);
+    vec3 lc = cc * ((uLutSize - 1.0) / uLutSize) + (0.5 / uLutSize);
+    srgb = mix(srgb, texture(uLut, lc).rgb, uLutAmount / 100.0);
   }
 
   outColor = vec4(srgb, 1.0);

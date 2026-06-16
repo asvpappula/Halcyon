@@ -18,7 +18,15 @@ import {
   type CurveSet,
 } from '../engine/curve'
 import { computeMatch, computeTargetStats, type MatchParams } from '../engine/match'
-import { persistEdit, persistPhoto, type PhotoRow } from '../persist/db'
+import { parseCube, type LutRef } from '../engine/lut'
+import {
+  persistEdit,
+  persistPhoto,
+  persistLut,
+  deleteLutRow,
+  loadLuts,
+  type PhotoRow,
+} from '../persist/db'
 import { loadUserPresets, saveUserPresets, type Preset } from '../persist/presets'
 
 export interface PhotoMeta {
@@ -41,6 +49,16 @@ export const getImage = (id: string): ImageEntry | undefined => images.get(id)
 // Reference images (for matching) also live outside the store.
 const refImages = new Map<string, ImageBitmap>()
 export const getRefImage = (id: string): ImageBitmap | undefined => refImages.get(id)
+
+// Imported LUT volumes (large binary) live outside the store; only meta is in state.
+export interface LutMeta {
+  id: string
+  name: string
+  size: number
+}
+const lutData = new Map<string, { size: number; data: Uint8Array }>()
+export const getLutData = (id: string): { size: number; data: Uint8Array } | undefined =>
+  lutData.get(id)
 
 export interface ReferenceMeta {
   id: string
@@ -89,6 +107,7 @@ interface EditorState {
   userPresets: Preset[]
   clipboard: Partial<ControlParams> | null
   compare: boolean // while true, the canvas renders the unedited original
+  luts: LutMeta[]
 
   addPhoto: (meta: PhotoMeta, bitmap: ImageBitmap, bytes?: Blob) => void
   setActive: (id: string) => void
@@ -129,6 +148,13 @@ interface EditorState {
   pasteSettings: () => void
   pasteToSelection: () => void
   setCompare: (on: boolean) => void
+  importLut: (file: File) => Promise<string>
+  setLut: (id: string | null) => void
+  setLutAmountLive: (amount: number) => void
+  beginLutScrub: () => void
+  endLutScrub: () => void
+  deleteLut: (id: string) => void
+  initLuts: () => Promise<void>
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -159,6 +185,9 @@ let hslScrub: { key: 'hslHue' | 'hslSat' | 'hslLum'; before: number[] } | null =
 // Transient tone-curve scrub: one point drag coalesces to a single command that
 // captures the whole curve set (master + R/G/B) before/after.
 let curveScrub: { before: CurveSet } | null = null
+
+// Transient LUT-intensity scrub: coalesces an amount drag into one command.
+let lutScrub: { before: LutRef | null } | null = null
 
 // Supersede an in-flight match/look animation when a new one starts (prevents two
 // rAF loops fighting over the same photo's params).
@@ -195,6 +224,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   userPresets: loadUserPresets(),
   clipboard: null,
   compare: false,
+  luts: [],
 
   addPhoto: (meta, bitmap, bytes) => {
     images.set(meta.id, { bitmap, width: meta.width, height: meta.height })
@@ -216,6 +246,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     scrub = null // drop any pending scrub so it can't commit onto the new photo
     hslScrub = null
     curveScrub = null
+    lutScrub = null
     set({ activeId: id, view: { ...DEFAULT_VIEW } })
   },
 
@@ -576,6 +607,78 @@ export const useEditor = create<EditorState>()((set, get) => ({
 
   setCompare: (on) => set({ compare: on }),
 
+  // Parse + register a .cube LUT. Throws on a malformed file (caller toasts the error).
+  importLut: async (file) => {
+    const text = await file.text()
+    const { size, data } = parseCube(text)
+    const id = crypto.randomUUID()
+    const name = file.name.replace(/\.cube$/i, '')
+    lutData.set(id, { size, data })
+    set((s) => ({ luts: [...s.luts, { id, name, size }] }))
+    if (get().storageOk) void persistLut({ id, name, size, data, createdAt: Date.now() }).catch(() => {})
+    return id
+  },
+
+  // Apply / clear the active photo's LUT (one undo command). Keeps amount if same LUT.
+  setLut: (id) => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const before = edits[activeId].lut
+    const after: LutRef | null = id
+      ? { id, amount: before && before.id === id ? before.amount : 100 }
+      : null
+    set({ edits: { ...edits, [activeId]: { ...edits[activeId], lut: after } } })
+    pushCommand(set, get, activeId, { lut: before }, { lut: after })
+  },
+
+  setLutAmountLive: (amount) => {
+    const { activeId, edits, storageOk } = get()
+    if (!activeId) return
+    const cur = edits[activeId].lut
+    if (!cur) return
+    const next = { ...edits[activeId], lut: { ...cur, amount } }
+    set({ edits: { ...edits, [activeId]: next } })
+    scheduleSave(activeId, next, storageOk)
+  },
+
+  beginLutScrub: () => {
+    const { activeId, edits } = get()
+    if (!activeId || lutScrub) return
+    animToken++
+    const cur = edits[activeId].lut
+    lutScrub = { before: cur ? { ...cur } : null }
+  },
+
+  endLutScrub: () => {
+    const { activeId, edits } = get()
+    if (!activeId || !lutScrub) return
+    const before = lutScrub.before
+    const after = edits[activeId].lut
+    lutScrub = null
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      pushCommand(set, get, activeId, { lut: before }, { lut: after ? { ...after } : null })
+    }
+  },
+
+  // Remove a LUT from the registry. Photos still referencing it render without it
+  // (the renderer treats missing data as no LUT).
+  deleteLut: (id) => {
+    lutData.delete(id)
+    set((s) => ({ luts: s.luts.filter((l) => l.id !== id) }))
+    if (get().storageOk) void deleteLutRow(id).catch(() => {})
+  },
+
+  initLuts: async () => {
+    try {
+      const rows = await loadLuts()
+      if (!rows.length) return
+      for (const r of rows) lutData.set(r.id, { size: r.size, data: r.data })
+      set({ luts: rows.map((r) => ({ id: r.id, name: r.name, size: r.size })) })
+    } catch {
+      /* ignore — LUTs just won't be available */
+    }
+  },
+
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))
     // Merge, don't replace: a photo imported during the async load must survive.
@@ -613,18 +716,20 @@ function arraysEqual(a: number[], b: number[]): boolean {
 // Snapshot a photo's full look (every develop field except crop), deep-cloning the
 // structured fields so the clipboard stays independent of further edits.
 function snapshotLook(p: ControlParams): Partial<ControlParams> {
-  const { crop: _crop, curves, hslHue, hslSat, hslLum, ...scalars } = p
+  const { crop: _crop, curves, hslHue, hslSat, hslLum, lut, ...scalars } = p
   return {
     ...scalars,
     curves: cloneCurves(curves ?? IDENTITY_CURVES()),
     hslHue: [...(hslHue ?? [])],
     hslSat: [...(hslSat ?? [])],
     hslLum: [...(hslLum ?? [])],
+    lut: lut ? { ...lut } : null,
   }
 }
 
 function cloneVal<K extends keyof ControlParams>(k: K, v: ControlParams[K]): ControlParams[K] {
   if (k === 'curves') return cloneCurves(v as CurveSet) as ControlParams[K]
+  if (k === 'lut') return (v ? { ...(v as LutRef) } : null) as ControlParams[K]
   if (Array.isArray(v)) return [...v] as unknown as ControlParams[K]
   return v
 }

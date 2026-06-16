@@ -42,7 +42,7 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 
 ## Presets + LUTs
 - [x] User presets (save/apply/delete) + built-in starter looks — `persist/presets.ts` + ReferenceTray (inline name input).
-- [ ] .cube LUT import as a pipeline layer
+- [x] .cube LUT import as a pipeline layer — `engine/lut.ts` parser (5 tests) → WebGL2 `sampler3D` volume on texture unit 2, sampled after the tone curve with trilinear interp + intensity blend (gated identity). Registry persisted to IndexedDB (Dexie v2); per-photo `lut` ref. `LutPanel.tsx` import/apply/delete + amount slider. Verified: exact invert through the shader, undoable apply/intensity.
 - [x] Copy/paste develop settings across photos — clipboard copies the full look (all develop fields except crop, deep-cloned), Copy/Paste in the top bar + "Paste to N" in the batch footer; one undo command per paste. Verified incl. HSL/curve fields + clipboard independence.
 
 ## Launch prep

@@ -42,6 +42,7 @@ export default function App() {
         setStorageOk(false)
         return
       }
+      void useEditor.getState().initLuts() // restore imported LUTs (independent of photos)
       try {
         const { photos, edits, blobs } = await loadAll()
         if (photos.length === 0) return

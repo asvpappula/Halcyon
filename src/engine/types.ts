@@ -2,6 +2,7 @@
 // headless and reusable inside Web Workers. See docs/ARCHITECTURE.md and docs/ENGINE-SPEC.md.
 
 import { IDENTITY_CURVES, type CurveSet } from './curve'
+import type { LutRef } from './lut'
 
 /** Crop region in normalized image coordinates (0..1), top-left origin. null = full frame. */
 export interface CropRect {
@@ -36,6 +37,8 @@ export interface ControlParams {
   hslLum: number[]
   // Tone curve: master (RGB) + per-channel point sets (render-only). null-safe via DEFAULT.
   curves: CurveSet
+  // Imported 3D LUT reference + blend amount (render-only). null = no LUT.
+  lut: LutRef | null
 }
 
 export const HSL_BANDS = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta']
@@ -60,12 +63,13 @@ export const DEFAULT_PARAMS: ControlParams = {
   hslSat: [0, 0, 0, 0, 0, 0, 0, 0],
   hslLum: [0, 0, 0, 0, 0, 0, 0, 0],
   curves: IDENTITY_CURVES(),
+  lut: null,
 }
 
-/** The scalar numeric develop controls (excludes crop + the HSL arrays + curves). */
+/** The scalar numeric develop controls (excludes crop, HSL arrays, curves, LUT). */
 export type DevelopKey = Exclude<
   keyof ControlParams,
-  'crop' | 'hslHue' | 'hslSat' | 'hslLum' | 'curves'
+  'crop' | 'hslHue' | 'hslSat' | 'hslLum' | 'curves' | 'lut'
 >
 
 /** A linear-RGB pixel (0..1 nominal; may exceed 1 mid-pipeline before output encode). */

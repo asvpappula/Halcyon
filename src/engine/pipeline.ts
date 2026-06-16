@@ -78,6 +78,9 @@ export class DevelopRenderer {
   private curveTex: WebGLTexture | null = null
   private lastCurves: CurveSet | null | undefined = undefined
   private curveActive = false
+  private lutTex: WebGLTexture | null = null
+  private lutInput: { id: string; size: number; data: Uint8Array; amount: number } | null = null
+  private lastLutId: string | null = null
   private uni: Record<string, WebGLUniformLocation | null> = {}
   private imgW = 0
   private imgH = 0
@@ -112,7 +115,7 @@ export class DevelopRenderer {
     gl.bindVertexArray(null)
 
     gl.useProgram(this.program)
-    const names = ['uScale', 'uOffset', 'uImage', 'uTexel', 'uCurve', 'uCurveActive', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
+    const names = ['uScale', 'uOffset', 'uImage', 'uTexel', 'uCurve', 'uCurveActive', 'uLut', 'uLutActive', 'uLutAmount', 'uLutSize', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
     for (const name of names) {
       this.uni[name] = gl.getUniformLocation(this.program, name)
     }
@@ -145,6 +148,10 @@ export class DevelopRenderer {
   }
   setView(v: View): void {
     this.view = v
+  }
+  // Resolved LUT (data looked up from the registry by the caller). null = no LUT.
+  setLut(lut: { id: string; size: number; data: Uint8Array; amount: number } | null): void {
+    this.lutInput = lut
   }
 
   resize(): void {
@@ -187,6 +194,24 @@ export class DevelopRenderer {
     }
   }
 
+  // Upload the 3D LUT volume only when the referenced LUT id changes.
+  private syncLut(): void {
+    const gl = this.gl
+    const lut = this.lutInput
+    if (!lut || lut.id === this.lastLutId) return
+    this.lastLutId = lut.id
+    if (!this.lutTex) this.lutTex = gl.createTexture()
+    gl.activeTexture(gl.TEXTURE2)
+    gl.bindTexture(gl.TEXTURE_3D, this.lutTex)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE)
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA, lut.size, lut.size, lut.size, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut.data)
+    gl.activeTexture(gl.TEXTURE0)
+  }
+
   render(): void {
     const gl = this.gl
     gl.clear(gl.COLOR_BUFFER_BIT)
@@ -194,6 +219,7 @@ export class DevelopRenderer {
     gl.useProgram(this.program)
     gl.bindVertexArray(this.vao)
     this.syncCurve()
+    this.syncLut()
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.tex)
     gl.uniform1i(this.uni.uImage, 0)
@@ -205,6 +231,17 @@ export class DevelopRenderer {
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D, this.curveTex)
       gl.uniform1i(this.uni.uCurve, 1)
+      gl.activeTexture(gl.TEXTURE0)
+    }
+    // uLut always points at unit 2 (a sampler3D must not share a unit with sampler2D uImage).
+    gl.uniform1i(this.uni.uLut, 2)
+    const lutOn = !!this.lutInput && !!this.lutTex
+    gl.uniform1f(this.uni.uLutActive, lutOn ? 1 : 0)
+    if (lutOn && this.lutInput) {
+      gl.uniform1f(this.uni.uLutAmount, this.lutInput.amount)
+      gl.uniform1f(this.uni.uLutSize, this.lutInput.size)
+      gl.activeTexture(gl.TEXTURE2)
+      gl.bindTexture(gl.TEXTURE_3D, this.lutTex)
       gl.activeTexture(gl.TEXTURE0)
     }
     const [sx, sy] = this.fitScale()
@@ -221,6 +258,7 @@ export class DevelopRenderer {
     const gl = this.gl
     if (this.tex) gl.deleteTexture(this.tex)
     if (this.curveTex) gl.deleteTexture(this.curveTex)
+    if (this.lutTex) gl.deleteTexture(this.lutTex)
     gl.deleteVertexArray(this.vao)
     gl.deleteProgram(this.program)
   }

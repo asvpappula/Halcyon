@@ -3,6 +3,7 @@ import { CanvasView } from './CanvasView'
 import { Slider } from './Slider'
 import { HslMixer } from './HslMixer'
 import { CurveEditor } from './CurveEditor'
+import { LutPanel } from './LutPanel'
 import { ReferenceTray } from './ReferenceTray'
 import { ExportDialog } from './ExportDialog'
 import { FunnelHero } from './FunnelHero'
@@ -257,6 +258,10 @@ export function Editor() {
 
           <div className="mt-5">
             <CurveEditor />
+          </div>
+
+          <div className="mt-5">
+            <LutPanel />
           </div>
 
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Crop</div>

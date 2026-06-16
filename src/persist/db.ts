@@ -13,6 +13,13 @@ export interface PhotoRow {
   height: number
   createdAt: number
 }
+export interface LutRow {
+  id: string
+  name: string
+  size: number
+  data: Uint8Array // size³ × 4 RGBA
+  createdAt: number
+}
 export interface BlobRow {
   id: string
   bytes: Blob
@@ -28,9 +35,11 @@ class HalcyonDB extends Dexie {
   photos!: Table<PhotoRow, string>
   blobs!: Table<BlobRow, string>
   edits!: Table<EditRow, string>
+  luts!: Table<LutRow, string>
   constructor() {
     super('halcyon')
     this.version(1).stores({ photos: 'id', blobs: 'id', edits: 'photoId' })
+    this.version(2).stores({ photos: 'id', blobs: 'id', edits: 'photoId', luts: 'id' })
   }
 }
 
@@ -53,6 +62,20 @@ export async function deletePhoto(id: string): Promise<void> {
     await db.blobs.delete(id)
     await db.edits.delete(id)
   })
+}
+
+export async function persistLut(row: LutRow): Promise<void> {
+  await db.luts.put(row)
+}
+
+export async function deleteLutRow(id: string): Promise<void> {
+  await db.luts.delete(id)
+}
+
+export async function loadLuts(): Promise<LutRow[]> {
+  const luts = await db.luts.toArray()
+  luts.sort((a, b) => a.createdAt - b.createdAt)
+  return luts
 }
 
 export interface LoadedData {

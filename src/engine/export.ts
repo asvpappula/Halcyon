@@ -14,6 +14,7 @@ export interface ExportOptions {
   format: ExportFormat
   quality?: number // 0..1, for jpeg/webp
   maxEdge?: number // longest-edge cap in px; omitted = full size
+  lut?: { size: number; data: Uint8Array; amount: number } | null // resolved from the registry
 }
 
 export async function exportPhoto(
@@ -21,7 +22,7 @@ export async function exportPhoto(
   params: ControlParams,
   opts: ExportOptions,
 ): Promise<Blob> {
-  const { format, quality = 0.92, maxEdge } = opts
+  const { format, quality = 0.92, maxEdge, lut } = opts
 
   const glCanvas = document.createElement('canvas')
   glCanvas.width = 1
@@ -63,6 +64,7 @@ export async function exportPhoto(
   let buf: WebGLBuffer | null = null
   let tex: WebGLTexture | null = null
   let curveTex: WebGLTexture | null = null
+  let lutTex: WebGLTexture | null = null
   try {
     prog = buildProgram(gl)
     vao = gl.createVertexArray()
@@ -110,6 +112,23 @@ export async function exportPhoto(
       gl.activeTexture(gl.TEXTURE0)
     }
 
+    gl.uniform1i(gl.getUniformLocation(prog, 'uLut'), 2)
+    gl.uniform1f(gl.getUniformLocation(prog, 'uLutActive'), lut ? 1 : 0)
+    if (lut) {
+      lutTex = gl.createTexture()
+      gl.activeTexture(gl.TEXTURE2)
+      gl.bindTexture(gl.TEXTURE_3D, lutTex)
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE)
+      gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA, lut.size, lut.size, lut.size, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut.data)
+      gl.uniform1f(gl.getUniformLocation(prog, 'uLutAmount'), lut.amount)
+      gl.uniform1f(gl.getUniformLocation(prog, 'uLutSize'), lut.size)
+      gl.activeTexture(gl.TEXTURE0)
+    }
+
     gl.viewport(0, 0, renderW, renderH)
     gl.clearColor(0, 0, 0, 1)
     gl.clear(gl.COLOR_BUFFER_BIT)
@@ -149,6 +168,7 @@ export async function exportPhoto(
   } finally {
     if (tex) gl.deleteTexture(tex)
     if (curveTex) gl.deleteTexture(curveTex)
+    if (lutTex) gl.deleteTexture(lutTex)
     if (buf) gl.deleteBuffer(buf)
     if (vao) gl.deleteVertexArray(vao)
     if (prog) gl.deleteProgram(prog)

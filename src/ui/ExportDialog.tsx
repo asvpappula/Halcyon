@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useEditor, getImage } from '../store/editor'
+import { useEditor, getImage, getLutData } from '../store/editor'
 import { exportPhoto, downloadBlob, type ExportFormat } from '../engine/export'
 
 const SIZES: { label: string; maxEdge?: number }[] = [
@@ -47,10 +47,13 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
     setErr(null)
     await new Promise((r) => requestAnimationFrame(() => r(null))) // let "Exporting…" paint
     try {
+      const lr = edits[activeId].lut
+      const ld = lr ? getLutData(lr.id) : undefined
       const blob = await exportPhoto(img.bitmap, edits[activeId], {
         format: fmt,
         quality: quality / 100,
         maxEdge: SIZES[sizeIdx].maxEdge,
+        lut: lr && ld ? { size: ld.size, data: ld.data, amount: lr.amount } : null,
       })
       const base = (photos[activeId]?.name || 'halcyon').replace(/\.[^.]+$/, '')
       downloadBlob(blob, `${base}-halcyon.${fmtInfo.ext}`)

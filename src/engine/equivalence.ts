@@ -80,6 +80,9 @@ export function runEquivalenceCheck(trials = 8): EquivResult {
   gl.uniform1i(gl.getUniformLocation(prog, 'uImage'), 0)
   gl.uniform2f(gl.getUniformLocation(prog, 'uScale'), 1, 1)
   gl.uniform2f(gl.getUniformLocation(prog, 'uOffset'), 0, 0)
+  // uLut is a sampler3D: put it on its own unit so it doesn't collide with uImage (unit 0).
+  // uLutActive defaults to 0, so it's never sampled here — this just satisfies validation.
+  gl.uniform1i(gl.getUniformLocation(prog, 'uLut'), 2)
   gl.viewport(0, 0, N, 1)
 
   let seed = 0x2545f491

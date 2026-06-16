@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { DevelopRenderer } from '../engine/pipeline'
-import { useEditor, getImage } from '../store/editor'
+import { useEditor, getImage, getLutData } from '../store/editor'
 import { DEFAULT_PARAMS } from '../engine/types'
 
 /** Hosts the WebGL2 canvas. Renders on demand when the active image, params, or
@@ -112,7 +112,12 @@ export function CanvasView() {
   useEffect(() => {
     const r = rendererRef.current
     if (!r) return
-    r.setParams(compare ? DEFAULT_PARAMS : params)
+    const p = compare ? DEFAULT_PARAMS : params
+    r.setParams(p)
+    // Resolve the LUT reference to its registry data for the renderer.
+    const lr = p.lut
+    const d = lr ? getLutData(lr.id) : undefined
+    r.setLut(lr && d ? { id: lr.id, size: d.size, data: d.data, amount: lr.amount } : null)
     r.setView(view)
     requestRender()
   }, [params, view, compare])
