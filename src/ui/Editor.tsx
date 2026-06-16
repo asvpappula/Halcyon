@@ -330,6 +330,11 @@ export function Editor() {
             <LutPanel />
           </div>
 
+          <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Geometry</div>
+          <Slider label="Straighten" ck="straighten" min={-45} max={45} />
+          <Slider label="Persp H" ck="perspectiveH" />
+          <Slider label="Persp V" ck="perspectiveV" />
+
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Crop</div>
           <div className="flex flex-wrap gap-1">
             <button

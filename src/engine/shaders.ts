@@ -26,6 +26,7 @@ uniform float uSharpen, uNoiseReduction, uVignette, uGrain;
 uniform float uSharpenRadius, uSharpenDetail, uSharpenMasking, uColorNoiseReduction;
 uniform float uVignetteMidpoint, uVignetteFeather, uVignetteRoundness, uGrainSize, uGrainRoughness;
 uniform float uTexture, uClarity, uDehaze; // Presence (render-only)
+uniform float uStraighten, uPerspectiveH, uPerspectiveV; // geometry (render-only)
 uniform vec3 uCgSh, uCgMid, uCgHi; // color grading per region: [hue 0..360, sat 0..100, lum -100..100]
 uniform float uCgBalance; // -100..100 pivot shift
 uniform vec2 uTexel; // 1 / source size, for neighbor taps (0 when effects unused)
@@ -63,9 +64,22 @@ vec3 cgOffset(vec3 hsl) {
   vec3 col = hsv2rgb(vec3(hsl.x / 360.0, 1.0, 1.0)); // pure hue
   return (col - 0.5) * (hsl.y / 100.0) * 0.25;        // tint offset around gray
 }
+// Geometry: map frame UV -> source UV (straighten rotation + keystone). Identity at 0.
+vec2 geoUV(vec2 uv) {
+  uv -= 0.5;
+  float ph = (uPerspectiveH / 100.0) * 0.6;
+  float pv = (uPerspectiveV / 100.0) * 0.6;
+  float w = 1.0 + ph * uv.x + pv * uv.y;
+  uv /= max(0.2, w);
+  float a = uStraighten * 0.0174532925;
+  float ca = cos(a), sa = sin(a);
+  uv = mat2(ca, sa, -sa, ca) * uv;
+  return uv + 0.5;
+}
 
 void main() {
-  vec3 s = texture(uImage, vUv).rgb;
+  vec2 baseUV = geoUV(vUv);
+  vec3 s = texture(uImage, baseUV).rgb;
   vec3 c = vec3(srgbToLinear(s.r), srgbToLinear(s.g), srgbToLinear(s.b));
 
   // (1) white balance — diagonal gain
@@ -95,16 +109,16 @@ void main() {
   // preserve hue. Needs uTexel (the display proxy), so it no-ops in the equivalence gate.
   if ((uTexture != 0.0 || uClarity != 0.0) && uTexel.x > 0.0) {
     float Yp = luma(c);
-    float yC = luma(linSample(vUv));
-    float yFine = 0.25 * (luma(linSample(vUv + vec2(uTexel.x, 0.0))) + luma(linSample(vUv - vec2(uTexel.x, 0.0))) +
-                          luma(linSample(vUv + vec2(0.0, uTexel.y))) + luma(linSample(vUv - vec2(0.0, uTexel.y))));
+    float yC = luma(linSample(baseUV));
+    float yFine = 0.25 * (luma(linSample(baseUV + vec2(uTexel.x, 0.0))) + luma(linSample(baseUV - vec2(uTexel.x, 0.0))) +
+                          luma(linSample(baseUV + vec2(0.0, uTexel.y))) + luma(linSample(baseUV - vec2(0.0, uTexel.y))));
     float fine = yC - yFine;
     float R = 3.0;
     float yCoarse = 0.125 * (
-      luma(linSample(vUv + vec2(R * uTexel.x, 0.0))) + luma(linSample(vUv - vec2(R * uTexel.x, 0.0))) +
-      luma(linSample(vUv + vec2(0.0, R * uTexel.y))) + luma(linSample(vUv - vec2(0.0, R * uTexel.y))) +
-      luma(linSample(vUv + R * uTexel)) + luma(linSample(vUv - R * uTexel)) +
-      luma(linSample(vUv + vec2(R * uTexel.x, -R * uTexel.y))) + luma(linSample(vUv + vec2(-R * uTexel.x, R * uTexel.y))));
+      luma(linSample(baseUV + vec2(R * uTexel.x, 0.0))) + luma(linSample(baseUV - vec2(R * uTexel.x, 0.0))) +
+      luma(linSample(baseUV + vec2(0.0, R * uTexel.y))) + luma(linSample(baseUV - vec2(0.0, R * uTexel.y))) +
+      luma(linSample(baseUV + R * uTexel)) + luma(linSample(baseUV - R * uTexel)) +
+      luma(linSample(baseUV + vec2(R * uTexel.x, -R * uTexel.y))) + luma(linSample(baseUV + vec2(-R * uTexel.x, R * uTexel.y))));
     float coarse = yC - yCoarse;
     float mid = clamp(1.0 - abs(Yp - 0.5) * 2.0, 0.0, 1.0);
     float add = fine * (uTexture / 100.0) * 1.2 + coarse * (uClarity / 100.0) * mid * 1.6;
@@ -180,23 +194,23 @@ void main() {
   if (uSharpen > 0.0 && uTexel.x > 0.0) {
     float rad = 1.0 + (uSharpenRadius / 100.0) * 2.5;
     vec2 ox = vec2(uTexel.x * rad, 0.0), oy = vec2(0.0, uTexel.y * rad);
-    vec3 c0 = linSample(vUv);
-    vec3 blur = 0.25 * (linSample(vUv + ox) + linSample(vUv - ox) + linSample(vUv + oy) + linSample(vUv - oy));
-    float gx = luma(linSample(vUv + ox)) - luma(linSample(vUv - ox));
-    float gy = luma(linSample(vUv + oy)) - luma(linSample(vUv - oy));
+    vec3 c0 = linSample(baseUV);
+    vec3 blur = 0.25 * (linSample(baseUV + ox) + linSample(baseUV - ox) + linSample(baseUV + oy) + linSample(baseUV - oy));
+    float gx = luma(linSample(baseUV + ox)) - luma(linSample(baseUV - ox));
+    float gy = luma(linSample(baseUV + oy)) - luma(linSample(baseUV - oy));
     float mask = mix(1.0, smoothstep(0.0, 0.12, sqrt(gx * gx + gy * gy)), uSharpenMasking / 100.0);
     c += (c0 - blur) * (uSharpen / 100.0) * (1.5 + uSharpenDetail / 100.0) * mask;
   }
   // Luminance noise reduction — pull luma toward the neighborhood average.
   if (uNoiseReduction > 0.0 && uTexel.x > 0.0) {
-    vec3 blur = 0.25 * (linSample(vUv + vec2(uTexel.x, 0.0)) + linSample(vUv - vec2(uTexel.x, 0.0)) +
-                        linSample(vUv + vec2(0.0, uTexel.y)) + linSample(vUv - vec2(0.0, uTexel.y)));
-    c += vec3(luma(blur) - luma(linSample(vUv))) * (uNoiseReduction / 100.0);
+    vec3 blur = 0.25 * (linSample(baseUV + vec2(uTexel.x, 0.0)) + linSample(baseUV - vec2(uTexel.x, 0.0)) +
+                        linSample(baseUV + vec2(0.0, uTexel.y)) + linSample(baseUV - vec2(0.0, uTexel.y)));
+    c += vec3(luma(blur) - luma(linSample(baseUV))) * (uNoiseReduction / 100.0);
   }
   // Color noise reduction — smooth chroma toward the neighborhood, keep luma.
   if (uColorNoiseReduction > 0.0 && uTexel.x > 0.0) {
-    vec3 blur = 0.25 * (linSample(vUv + vec2(uTexel.x, 0.0)) + linSample(vUv - vec2(uTexel.x, 0.0)) +
-                        linSample(vUv + vec2(0.0, uTexel.y)) + linSample(vUv - vec2(0.0, uTexel.y)));
+    vec3 blur = 0.25 * (linSample(baseUV + vec2(uTexel.x, 0.0)) + linSample(baseUV - vec2(uTexel.x, 0.0)) +
+                        linSample(baseUV + vec2(0.0, uTexel.y)) + linSample(baseUV - vec2(0.0, uTexel.y)));
     float yc = luma(c);
     c = vec3(yc) + mix(c - vec3(yc), blur - vec3(luma(blur)), (uColorNoiseReduction / 100.0) * 0.9);
   }

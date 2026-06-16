@@ -34,6 +34,9 @@ export const PARAM_MAP: [DevelopKey, string][] = [
   ['texture', 'uTexture'],
   ['clarity', 'uClarity'],
   ['dehaze', 'uDehaze'],
+  ['straighten', 'uStraighten'],
+  ['perspectiveH', 'uPerspectiveH'],
+  ['perspectiveV', 'uPerspectiveV'],
 ]
 
 // HSL array uniforms — set together with uniform1fv (render-only color mixer).

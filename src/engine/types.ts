@@ -42,6 +42,10 @@ export interface ControlParams {
   grain: number // 0..100  (film grain intensity)
   grainSize: number // 0..100  (grain cell size)
   grainRoughness: number // 0..100  (noise harshness)
+  // Geometry — sampling transforms (render-only; the match fit never sets these). 0 = off.
+  straighten: number // -45..45 degrees
+  perspectiveH: number // -100..100  (horizontal keystone)
+  perspectiveV: number // -100..100  (vertical keystone)
   crop: CropRect | null // geometry, not a develop slider; null = full frame
   // HSL / Color Mixer: 8 bands (Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta),
   // each -100..100. Render-only (the match fit never sets these). null-safe default = zeros.
@@ -99,6 +103,9 @@ export const DEFAULT_PARAMS: ControlParams = {
   grain: 0,
   grainSize: 25,
   grainRoughness: 50,
+  straighten: 0,
+  perspectiveH: 0,
+  perspectiveV: 0,
   crop: null,
   hslHue: [0, 0, 0, 0, 0, 0, 0, 0],
   hslSat: [0, 0, 0, 0, 0, 0, 0, 0],
