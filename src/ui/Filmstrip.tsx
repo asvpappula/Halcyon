@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useEditor } from '../store/editor'
 import { useToasts } from '../store/toast'
 import type { Flag } from '../persist/library'
+import { ContextMenu } from './ContextMenu'
+import { buildPhotoMenu } from './photoMenu'
 
 /** Clickable 1–5 star rating. Clicking the current rating clears it. */
 function Stars({ id, rating }: { id: string; rating: number }) {
@@ -85,6 +87,7 @@ export function Filmstrip() {
   const [newName, setNewName] = useState('')
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null)
 
   // The displayed set: collection → rating → flag filters, then sort.
   const visible = useMemo(() => {
@@ -303,6 +306,10 @@ export function Filmstrip() {
             return (
               <div
                 key={id}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setMenu({ x: e.clientX, y: e.clientY, id })
+                }}
                 className={`flex shrink-0 flex-col gap-1 rounded-md border px-2.5 py-1.5 ${
                   id === activeId ? 'border-accent' : 'border-hairline'
                 }`}
@@ -335,6 +342,14 @@ export function Filmstrip() {
           })}
         </div>
       </div>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={buildPhotoMenu(menu.id)}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </footer>
   )
 }

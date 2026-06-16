@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { DevelopRenderer } from '../engine/pipeline'
 import { useEditor, getImage, getLutData } from '../store/editor'
 import { DEFAULT_PARAMS } from '../engine/types'
+import { ContextMenu } from './ContextMenu'
+import { buildPhotoMenu } from './photoMenu'
 
 /** Hosts the WebGL2 canvas. Renders on demand when the active image, params, or
  *  view change. Wheel = zoom, drag = pan (when zoomed), double-click = reset view. */
@@ -141,6 +143,7 @@ export function CanvasView() {
   const onPointerUp = () => {
     dragRef.current = null
   }
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
 
   if (error) {
     return (
@@ -174,7 +177,14 @@ export function CanvasView() {
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-canvas">
+    <div
+      className="relative h-full w-full overflow-hidden bg-canvas"
+      onContextMenu={(e) => {
+        if (!activeId) return
+        e.preventDefault()
+        setMenu({ x: e.clientX, y: e.clientY })
+      }}
+    >
       <canvas
         ref={canvasRef}
         role="img"
@@ -196,6 +206,14 @@ export function CanvasView() {
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-fg-muted">
           Import a photo to begin
         </div>
+      )}
+      {menu && activeId && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={buildPhotoMenu(activeId)}
+          onClose={() => setMenu(null)}
+        />
       )}
     </div>
   )

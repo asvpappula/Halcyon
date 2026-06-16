@@ -143,6 +143,13 @@ export function Editor() {
     }
   }, [])
 
+  // Open the export dialog when the context menu requests it.
+  useEffect(() => {
+    const onExport = () => setExportOpen(true)
+    window.addEventListener('halcyon:export', onExport)
+    return () => window.removeEventListener('halcyon:export', onExport)
+  }, [])
+
   // Library shortcuts: 1–5 rate the active photo (press the same number to clear),
   // P/X flag pick/reject (toggle), U unflag. Ignored while typing in a field.
   useEffect(() => {

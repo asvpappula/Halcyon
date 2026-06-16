@@ -127,6 +127,7 @@ interface EditorState {
   beginScrub: (key: ControlKey) => void
   endScrub: (key: ControlKey) => void
   resetControl: (key: ControlKey) => void
+  resetAllDevelop: () => void
   undo: () => void
   redo: () => void
   canUndo: () => boolean
@@ -314,6 +315,16 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const next = { ...edits[activeId], [key]: def }
     set({ edits: { ...edits, [activeId]: next } })
     pushCommand(set, get, activeId, { [key]: before }, { [key]: def })
+  },
+
+  // Reset every develop value (and crop) to defaults in one undoable command.
+  resetAllDevelop: () => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const before = cloneParams(edits[activeId])
+    const after = cloneParams(DEFAULT_PARAMS)
+    set({ edits: { ...edits, [activeId]: cloneParams(DEFAULT_PARAMS) } })
+    pushCommand(set, get, activeId, before, after)
   },
 
   undo: () => {
@@ -808,6 +819,19 @@ function arraysEqual(a: number[], b: number[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+// Deep-clone a full ControlParams (including crop) so undo snapshots don't alias state.
+function cloneParams(p: ControlParams): ControlParams {
+  return {
+    ...p,
+    crop: p.crop ? { ...p.crop } : null,
+    hslHue: [...p.hslHue],
+    hslSat: [...p.hslSat],
+    hslLum: [...p.hslLum],
+    curves: cloneCurves(p.curves),
+    lut: p.lut ? { ...p.lut } : null,
+  }
 }
 
 // Snapshot a photo's full look (every develop field except crop), deep-cloning the
