@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CanvasView } from './CanvasView'
 import { Slider } from './Slider'
 import { HslMixer } from './HslMixer'
+import { ColorGradePanel } from './ColorGrade'
 import { CurveEditor } from './CurveEditor'
 import { LutPanel } from './LutPanel'
 import { Filmstrip } from './Filmstrip'
@@ -299,6 +300,10 @@ export function Editor() {
 
           <div className="mt-5">
             <HslMixer />
+          </div>
+
+          <div className="mt-5">
+            <ColorGradePanel />
           </div>
 
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Detail</div>

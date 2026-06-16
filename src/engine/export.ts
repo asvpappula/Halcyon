@@ -3,6 +3,7 @@
 // Caps the render to the GPU's MAX_TEXTURE_SIZE. docs/FEATURES.md (P2 export).
 
 import type { ControlParams } from './types'
+import { DEFAULT_COLOR_GRADE } from './types'
 import { buildProgram, PARAM_MAP, HSL_UNIFORMS } from './pipeline'
 import { buildCurveLut, isCurveActive } from './curve'
 
@@ -95,6 +96,11 @@ export async function exportPhoto(
     for (const [key, name] of PARAM_MAP) gl.uniform1f(gl.getUniformLocation(prog, name), params[key])
     for (const [key, name] of HSL_UNIFORMS)
       gl.uniform1fv(gl.getUniformLocation(prog, name), params[key] ?? ZERO8)
+    const cg = params.colorGrade ?? DEFAULT_COLOR_GRADE()
+    gl.uniform3f(gl.getUniformLocation(prog, 'uCgSh'), cg.sh[0], cg.sh[1], cg.sh[2])
+    gl.uniform3f(gl.getUniformLocation(prog, 'uCgMid'), cg.mid[0], cg.mid[1], cg.mid[2])
+    gl.uniform3f(gl.getUniformLocation(prog, 'uCgHi'), cg.hi[0], cg.hi[1], cg.hi[2])
+    gl.uniform1f(gl.getUniformLocation(prog, 'uCgBalance'), cg.balance)
     gl.uniform2f(gl.getUniformLocation(prog, 'uTexel'), renderW ? 1 / renderW : 0, renderH ? 1 / renderH : 0)
 
     const curveActive = isCurveActive(params.curves)

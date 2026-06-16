@@ -24,6 +24,8 @@ uniform float uHslSat[8];
 uniform float uHslLum[8];
 uniform float uSharpen, uNoiseReduction, uVignette, uGrain;
 uniform float uTexture, uClarity, uDehaze; // Presence (render-only)
+uniform vec3 uCgSh, uCgMid, uCgHi; // color grading per region: [hue 0..360, sat 0..100, lum -100..100]
+uniform float uCgBalance; // -100..100 pivot shift
 uniform vec2 uTexel; // 1 / source size, for neighbor taps (0 when effects unused)
 uniform sampler2D uCurve; // 256×1 baked tone-curve LUT (master ∘ per-channel)
 uniform float uCurveActive; // 0 = skip (exact identity), 1 = apply
@@ -54,6 +56,11 @@ vec3 linSample(vec2 uv) {
   return vec3(srgbToLinear(t.r), srgbToLinear(t.g), srgbToLinear(t.b));
 }
 float hash21(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+vec3 cgOffset(vec3 hsl) {
+  if (hsl.y <= 0.0) return vec3(0.0);
+  vec3 col = hsv2rgb(vec3(hsl.x / 360.0, 1.0, 1.0)); // pure hue
+  return (col - 0.5) * (hsl.y / 100.0) * 0.25;        // tint offset around gray
+}
 
 void main() {
   vec3 s = texture(uImage, vUv).rgb;
@@ -120,6 +127,21 @@ void main() {
   float vib = 1.0 + (uVibrance / 100.0) * (1.0 - clamp(chroma * 2.0, 0.0, 1.0));
   float sfac = sat * vib;
   c = vec3(Y2) + (c - vec3(Y2)) * sfac;
+
+  // (6.5) Color grading — tint shadows / midtones / highlights by luma region, plus a
+  // per-region luminance push. Render-only, gated so 0 = exact identity.
+  float cgSum = uCgSh.y + uCgMid.y + uCgHi.y + abs(uCgSh.z) + abs(uCgMid.z) + abs(uCgHi.z);
+  if (cgSum > 0.0) {
+    float Yg = clamp(luma(c), 0.0, 1.0);
+    float pivot = 0.5 + (uCgBalance / 100.0) * 0.3;
+    float shW = smoothstep(pivot, 0.0, Yg);
+    float hiW = smoothstep(pivot, 1.0, Yg);
+    float midW = max(0.0, 1.0 - shW - hiW);
+    vec3 off = cgOffset(uCgSh) * shW + cgOffset(uCgMid) * midW + cgOffset(uCgHi) * hiW;
+    float lum = (uCgSh.z * shW + uCgMid.z * midW + uCgHi.z * hiW) / 100.0 * 0.5;
+    c = max(c + off, vec3(0.0)) * (1.0 + lum);
+    c = max(c, vec3(0.0));
+  }
 
   // (7) HSL / color mixer — render-only. Skipped entirely (exact identity, so the
   // equivalence gate is unaffected) unless some band is non-zero. The HSV round-trip

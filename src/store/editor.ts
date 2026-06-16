@@ -4,7 +4,9 @@
 import { create } from 'zustand'
 import {
   DEFAULT_PARAMS,
+  DEFAULT_COLOR_GRADE,
   type ControlParams,
+  type ColorGrade,
   type CropRect,
   type DevelopKey,
   type LabStats,
@@ -164,6 +166,9 @@ interface EditorState {
   setCompare: (on: boolean) => void
   setEyedropper: (on: boolean) => void
   setWhiteBalance: (temp: number, tint: number) => void
+  setColorGradeLive: (cg: ColorGrade) => void
+  beginColorGradeScrub: () => void
+  endColorGradeScrub: () => void
   importLut: (file: File) => Promise<string>
   setLut: (id: string | null) => void
   setLutAmountLive: (amount: number) => void
@@ -215,6 +220,15 @@ let curveScrub: { before: CurveSet } | null = null
 
 // Transient LUT-intensity scrub: coalesces an amount drag into one command.
 let lutScrub: { before: LutRef | null } | null = null
+
+// Transient color-grade scrub: one wheel/slider gesture coalesces to a single command.
+let cgScrub: { before: ColorGrade } | null = null
+const cloneCG = (cg: ColorGrade): ColorGrade => ({
+  sh: [...cg.sh],
+  mid: [...cg.mid],
+  hi: [...cg.hi],
+  balance: cg.balance,
+})
 
 // Supersede an in-flight match/look animation when a new one starts (prevents two
 // rAF loops fighting over the same photo's params).
@@ -282,6 +296,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     hslScrub = null
     curveScrub = null
     lutScrub = null
+    cgScrub = null
     set({ activeId: id, view: { ...DEFAULT_VIEW } })
   },
 
@@ -665,6 +680,31 @@ export const useEditor = create<EditorState>()((set, get) => ({
     pushCommand(set, get, activeId, before, after)
   },
 
+  // Color grading — live update of the whole structured field (no history during drag).
+  setColorGradeLive: (cg) => {
+    const { activeId, edits, storageOk } = get()
+    if (!activeId) return
+    const next = { ...edits[activeId], colorGrade: cloneCG(cg) }
+    set({ edits: { ...edits, [activeId]: next } })
+    scheduleSave(activeId, next, storageOk)
+  },
+  beginColorGradeScrub: () => {
+    const { activeId, edits } = get()
+    if (!activeId || cgScrub) return
+    animToken++
+    cgScrub = { before: cloneCG(edits[activeId].colorGrade ?? DEFAULT_COLOR_GRADE()) }
+  },
+  endColorGradeScrub: () => {
+    const { activeId, edits } = get()
+    if (!activeId || !cgScrub) return
+    const before = cgScrub.before
+    const after = cloneCG(edits[activeId].colorGrade ?? DEFAULT_COLOR_GRADE())
+    cgScrub = null
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      pushCommand(set, get, activeId, { colorGrade: before }, { colorGrade: after })
+    }
+  },
+
   // Parse + register a .cube LUT. Throws on a malformed file (caller toasts the error).
   importLut: async (file) => {
     const text = await file.text()
@@ -848,13 +888,14 @@ function cloneParams(p: ControlParams): ControlParams {
     hslLum: [...p.hslLum],
     curves: cloneCurves(p.curves),
     lut: p.lut ? { ...p.lut } : null,
+    colorGrade: cloneCG(p.colorGrade ?? DEFAULT_COLOR_GRADE()),
   }
 }
 
 // Snapshot a photo's full look (every develop field except crop), deep-cloning the
 // structured fields so the clipboard stays independent of further edits.
 function snapshotLook(p: ControlParams): Partial<ControlParams> {
-  const { crop: _crop, curves, hslHue, hslSat, hslLum, lut, ...scalars } = p
+  const { crop: _crop, curves, hslHue, hslSat, hslLum, lut, colorGrade, ...scalars } = p
   return {
     ...scalars,
     curves: cloneCurves(curves ?? IDENTITY_CURVES()),
@@ -862,12 +903,14 @@ function snapshotLook(p: ControlParams): Partial<ControlParams> {
     hslSat: [...(hslSat ?? [])],
     hslLum: [...(hslLum ?? [])],
     lut: lut ? { ...lut } : null,
+    colorGrade: cloneCG(colorGrade ?? DEFAULT_COLOR_GRADE()),
   }
 }
 
 function cloneVal<K extends keyof ControlParams>(k: K, v: ControlParams[K]): ControlParams[K] {
   if (k === 'curves') return cloneCurves(v as CurveSet) as ControlParams[K]
   if (k === 'lut') return (v ? { ...(v as LutRef) } : null) as ControlParams[K]
+  if (k === 'colorGrade') return cloneCG((v as ColorGrade) ?? DEFAULT_COLOR_GRADE()) as ControlParams[K]
   if (Array.isArray(v)) return [...v] as unknown as ControlParams[K]
   return v
 }

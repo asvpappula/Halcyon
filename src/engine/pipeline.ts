@@ -3,7 +3,7 @@
 // Renders on demand (no RAF loop). docs/ARCHITECTURE.md §1.
 
 import type { ControlParams, DevelopKey } from './types'
-import { DEFAULT_PARAMS } from './types'
+import { DEFAULT_PARAMS, DEFAULT_COLOR_GRADE } from './types'
 import { VERT, FRAG } from './shaders'
 import { buildCurveLut, isCurveActive, type CurveSet } from './curve'
 
@@ -125,7 +125,7 @@ export class DevelopRenderer {
     gl.bindVertexArray(null)
 
     gl.useProgram(this.program)
-    const names = ['uScale', 'uOffset', 'uImage', 'uTexel', 'uCurve', 'uCurveActive', 'uLut', 'uLutActive', 'uLutAmount', 'uLutSize', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
+    const names = ['uScale', 'uOffset', 'uImage', 'uTexel', 'uCurve', 'uCurveActive', 'uLut', 'uLutActive', 'uLutAmount', 'uLutSize', 'uCgSh', 'uCgMid', 'uCgHi', 'uCgBalance', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
     for (const name of names) {
       this.uni[name] = gl.getUniformLocation(this.program, name)
     }
@@ -255,6 +255,11 @@ export class DevelopRenderer {
     gl.uniform1i(this.uni.uImage, 0)
     for (const [key, name] of PARAM_MAP) gl.uniform1f(this.uni[name], this.params[key])
     for (const [key, name] of HSL_UNIFORMS) gl.uniform1fv(this.uni[name], this.params[key] ?? ZERO8)
+    const cg = this.params.colorGrade ?? DEFAULT_COLOR_GRADE()
+    gl.uniform3f(this.uni.uCgSh, cg.sh[0], cg.sh[1], cg.sh[2])
+    gl.uniform3f(this.uni.uCgMid, cg.mid[0], cg.mid[1], cg.mid[2])
+    gl.uniform3f(this.uni.uCgHi, cg.hi[0], cg.hi[1], cg.hi[2])
+    gl.uniform1f(this.uni.uCgBalance, cg.balance)
     gl.uniform2f(this.uni.uTexel, this.imgW ? 1 / this.imgW : 0, this.imgH ? 1 / this.imgH : 0)
     gl.uniform1f(this.uni.uCurveActive, this.curveActive ? 1 : 0)
     if (this.curveActive && this.curveTex) {

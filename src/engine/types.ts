@@ -43,7 +43,23 @@ export interface ControlParams {
   curves: CurveSet
   // Imported 3D LUT reference + blend amount (render-only). null = no LUT.
   lut: LutRef | null
+  // Color grading: per-region [hue 0..360, sat 0..100, lum -100..100] + balance (render-only).
+  colorGrade: ColorGrade
 }
+
+/** 3-way color grading. Each region tuple is [hue 0..360, sat 0..100, lum -100..100]. */
+export interface ColorGrade {
+  sh: number[]
+  mid: number[]
+  hi: number[]
+  balance: number // -100..100, shifts the shadow/highlight pivot
+}
+export const DEFAULT_COLOR_GRADE = (): ColorGrade => ({
+  sh: [0, 0, 0],
+  mid: [0, 0, 0],
+  hi: [0, 0, 0],
+  balance: 0,
+})
 
 export const HSL_BANDS = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta']
 
@@ -71,12 +87,13 @@ export const DEFAULT_PARAMS: ControlParams = {
   hslLum: [0, 0, 0, 0, 0, 0, 0, 0],
   curves: IDENTITY_CURVES(),
   lut: null,
+  colorGrade: DEFAULT_COLOR_GRADE(),
 }
 
 /** The scalar numeric develop controls (excludes crop, HSL arrays, curves, LUT). */
 export type DevelopKey = Exclude<
   keyof ControlParams,
-  'crop' | 'hslHue' | 'hslSat' | 'hslLum' | 'curves' | 'lut'
+  'crop' | 'hslHue' | 'hslSat' | 'hslLum' | 'curves' | 'lut' | 'colorGrade'
 >
 
 /** A linear-RGB pixel (0..1 nominal; may exceed 1 mid-pipeline before output encode). */
