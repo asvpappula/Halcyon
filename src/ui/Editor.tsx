@@ -7,6 +7,7 @@ import { ReferenceTray } from './ReferenceTray'
 import { ExportDialog } from './ExportDialog'
 import { FunnelHero } from './FunnelHero'
 import { useEditor } from '../store/editor'
+import { useToasts } from '../store/toast'
 import { loadImageFile } from './import'
 import { centeredCrop } from '../engine/crop'
 import { buildLookUrl } from '../engine/look'
@@ -74,6 +75,7 @@ export function Editor() {
   const clearSelect = useEditor((s) => s.clearSelect)
   const applyMatchToSelection = useEditor((s) => s.applyMatchToSelection)
   const targetStats = useEditor((s) => s.targetStats)
+  const pushToast = useToasts((s) => s.push)
 
   const shareLook = async () => {
     if (!activeId) return
@@ -94,9 +96,8 @@ export function Editor() {
         const { meta, bitmap, bytes } = await loadImageFile(file)
         addPhoto(meta, bitmap, bytes)
       } catch (e) {
-        // Inline, non-blocking: surface to console; a designed error toast lands in Phase 2.
         console.error(e)
-        alert((e as Error).message)
+        pushToast((e as Error).message || 'Could not import that file.', 'error')
       }
     }
   }

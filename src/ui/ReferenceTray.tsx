@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useEditor } from '../store/editor'
 import { BUILTIN_PRESETS } from '../persist/presets'
 
@@ -38,6 +38,8 @@ function StrengthRing({ value }: { value: number }) {
 
 export function ReferenceTray() {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [savingPreset, setSavingPreset] = useState(false)
+  const [presetName, setPresetName] = useState('')
   const references = useEditor((s) => s.references)
   const addReference = useEditor((s) => s.addReference)
   const removeReference = useEditor((s) => s.removeReference)
@@ -132,17 +134,51 @@ export function ReferenceTray() {
       <div className="mt-2 border-t border-hairline pt-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[11px] uppercase tracking-wider text-fg-muted">Presets</span>
-          <button
-            disabled={!activeId}
-            onClick={() => {
-              const n = window.prompt('Preset name')
-              if (n) savePreset(n)
-            }}
-            className="text-[11px] text-fg-dim transition-colors hover:text-fg disabled:opacity-40"
-          >
-            Save
-          </button>
+          {!savingPreset && (
+            <button
+              disabled={!activeId}
+              onClick={() => {
+                setPresetName('')
+                setSavingPreset(true)
+              }}
+              className="text-[11px] text-fg-dim transition-colors hover:text-fg disabled:opacity-40"
+            >
+              Save
+            </button>
+          )}
         </div>
+        {savingPreset && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const n = presetName.trim()
+              if (n) savePreset(n)
+              setSavingPreset(false)
+              setPresetName('')
+            }}
+            className="mb-2 flex gap-1"
+          >
+            <input
+              autoFocus
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSavingPreset(false)
+                  setPresetName('')
+                }
+              }}
+              placeholder="Preset name"
+              className="min-w-0 flex-1 rounded border border-hairline bg-base px-2 py-1 text-xs text-fg outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              className="rounded border border-accent px-2 py-1 text-[11px] text-accent transition-colors hover:bg-accent-subtle"
+            >
+              Save
+            </button>
+          </form>
+        )}
         <div className="flex flex-col gap-1">
           {BUILTIN_PRESETS.map((p) => (
             <button

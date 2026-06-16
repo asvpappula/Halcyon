@@ -41,9 +41,14 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 - [ ] Filter by rating/flag, sort by date/name/rating
 
 ## Presets + LUTs
-- [ ] User presets (save/apply/delete) + built-in starter looks
+- [x] User presets (save/apply/delete) + built-in starter looks — `persist/presets.ts` + ReferenceTray (inline name input).
 - [ ] .cube LUT import as a pipeline layer
 - [ ] Copy/paste develop settings across photos
+
+## Launch prep
+- [x] Netlify deploy config (`netlify.toml` + `public/_redirects`), README, pushed to GitHub (asvpappula/Halcyon).
+- [x] Replace blocking `alert()`/`prompt()` with a toast system (`store/toast.ts` + `ui/Toaster.tsx`) and an inline preset-name input.
+- [ ] Connect repo to Netlify + first deploy (needs user action — accounts/credentials).
 
 ## Accounts + backend (only when persistence/teams are demanded)
 - [ ] Supabase Auth (email + one OAuth) + Postgres + Storage

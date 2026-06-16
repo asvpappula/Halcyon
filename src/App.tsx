@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Editor } from './ui/Editor'
+import { Toaster } from './ui/Toaster'
 import { useEditor, flushPendingSaves, type PhotoMeta } from './store/editor'
 import { loadAll, storageAvailable } from './persist/db'
 import { readLookFromUrl } from './engine/look'
@@ -90,6 +91,7 @@ export default function App() {
   return (
     <div className="h-full">
       <Editor />
+      <Toaster />
       {dev && (
         <div className="tnum pointer-events-none fixed bottom-2 left-2 z-50 rounded bg-raised px-2 py-1 text-[10px] text-fg-faint">
           {dev}
