@@ -1,0 +1,13 @@
+# Netlify build config — makes importing the repo a one-click deploy.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback (also in public/_redirects); harmless to declare in both.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
