@@ -81,7 +81,10 @@ export function idealReinhard(rgb: LinearRGB, s: LabStats, t: LabStats): LinearR
  *  v1: trimmed mean per channel (drop min+max when >=4 refs), else plain mean. */
 export function averageStats(list: LabStats[]): LabStats {
   if (list.length === 0) throw new Error('averageStats: empty')
-  if (list.length === 1) return list[0]
+  if (list.length === 1) {
+    const s = list[0]
+    return { mean: [s.mean[0], s.mean[1], s.mean[2]], std: [s.std[0], s.std[1], s.std[2]] }
+  }
   const pick = (sel: (s: LabStats) => number[], i: number): number => {
     const vals = list.map((s) => sel(s)[i]).sort((x, y) => x - y)
     const trimmed = vals.length >= 4 ? vals.slice(1, -1) : vals

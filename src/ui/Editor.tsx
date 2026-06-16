@@ -268,6 +268,7 @@ export function Editor() {
                   <button
                     onClick={() => toggleSelect(id)}
                     aria-label={sel ? 'Deselect' : 'Select'}
+                    aria-pressed={sel}
                     className={`grid h-4 w-4 place-items-center rounded border text-[10px] leading-none ${
                       sel
                         ? 'border-accent bg-accent-subtle text-accent'

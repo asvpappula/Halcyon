@@ -87,7 +87,7 @@ export function ReferenceTray() {
               <img src={r.url} alt={r.name} className="h-full w-full object-cover" />
               <button
                 onClick={() => removeReference(r.id)}
-                className="absolute right-1 top-1 hidden h-5 w-5 place-items-center rounded bg-raised text-fg-muted hover:text-fg group-hover:grid"
+                className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-raised text-fg-muted opacity-0 transition-opacity hover:text-fg focus-visible:opacity-100 group-hover:opacity-100"
                 aria-label="Remove reference"
               >
                 ×

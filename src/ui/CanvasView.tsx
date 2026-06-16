@@ -98,7 +98,10 @@ export function CanvasView() {
     if (!r || !activeId) return
     const img = getImage(activeId)
     if (!img) return
+    const st = useEditor.getState()
     r.setImage(img.bitmap, img.width, img.height)
+    r.setParams(st.edits[activeId] ?? DEFAULT_PARAMS) // don't rely on the params effect's ordering
+    r.setView(st.view)
     r.resize()
     requestRender()
   }, [activeId])

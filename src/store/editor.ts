@@ -165,6 +165,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
     const { activeId, edits } = get()
     if (!activeId) return
     if (scrub && scrub.key === key) return // idempotent for one gesture
+    animToken++ // grabbing a slider cancels any in-flight match animation (no race)
     scrub = { key, before: edits[activeId][key] }
   },
 
@@ -241,6 +242,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   removeReference: (id) => {
     const url = get().references.find((r) => r.id === id)?.url
     if (url) URL.revokeObjectURL(url)
+    refImages.get(id)?.close() // release the decoded bitmap (avoid leak)
     refImages.delete(id)
     set((s) => {
       const references = s.references.filter((r) => r.id !== id)
@@ -315,8 +317,10 @@ export const useEditor = create<EditorState>()((set, get) => ({
     if (!start.targetStats || start.selection.length === 0 || start.batchProgress) return
     const ids = [...start.selection]
     const target = start.targetStats
+    animToken++ // cancel any in-flight match animation so it can't overwrite batch results
     set({ batchProgress: { done: 0, total: ids.length } })
     void (async () => {
+      try {
       for (let i = 0; i < ids.length; i++) {
         const pid = ids[i]
         const img = getImage(pid)
@@ -340,27 +344,35 @@ export const useEditor = create<EditorState>()((set, get) => ({
         set({ batchProgress: { done: i + 1, total: ids.length } })
         await new Promise((r) => setTimeout(r, 0)) // yield to keep the UI responsive
       }
-      set({ batchProgress: null })
+      } finally {
+        set({ batchProgress: null }) // never leave the progress guard stuck
+      }
     })()
   },
 
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))
-    const photoMap: Record<string, PhotoMeta> = {}
-    const histMap: Record<string, History> = {}
-    const editMap: Record<string, ControlParams> = {}
-    for (const p of photos) {
-      photoMap[p.id] = p
-      histMap[p.id] = { stack: [], cursor: 0 }
-      editMap[p.id] = edits[p.id] ?? { ...DEFAULT_PARAMS }
-    }
-    set({
-      photos: photoMap,
-      order: photos.map((p) => p.id),
-      edits: editMap,
-      history: histMap,
-      activeId: photos[0]?.id ?? null,
-      view: { ...DEFAULT_VIEW },
+    // Merge, don't replace: a photo imported during the async load must survive.
+    set((s) => {
+      const photoMap = { ...s.photos }
+      const histMap = { ...s.history }
+      const editMap = { ...s.edits }
+      const order = [...s.order]
+      for (const p of photos) {
+        if (photoMap[p.id]) continue
+        photoMap[p.id] = p
+        histMap[p.id] = { stack: [], cursor: 0 }
+        editMap[p.id] = edits[p.id] ?? { ...DEFAULT_PARAMS }
+        order.push(p.id)
+      }
+      return {
+        photos: photoMap,
+        order,
+        edits: editMap,
+        history: histMap,
+        activeId: s.activeId ?? order[0] ?? null,
+        view: s.activeId ? s.view : { ...DEFAULT_VIEW },
+      }
     })
   },
 }))

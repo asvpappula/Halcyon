@@ -9,6 +9,7 @@ export function centeredCrop(
   aspectW: number,
   aspectH: number,
 ): CropRect {
+  if (imgW <= 0 || imgH <= 0 || aspectW <= 0 || aspectH <= 0) return { x: 0, y: 0, w: 1, h: 1 }
   const imgA = imgW / imgH
   const targetA = aspectW / aspectH
   let w = 1

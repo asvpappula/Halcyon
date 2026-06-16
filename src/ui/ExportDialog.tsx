@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEditor, getImage } from '../store/editor'
 import { exportPhoto, downloadBlob, type ExportFormat } from '../engine/export'
 
@@ -22,6 +22,17 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [sizeIdx, setSizeIdx] = useState(0)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    cardRef.current?.focus()
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
 
   if (!open) return null
   const fmtInfo = FORMATS.find((f) => f.value === fmt)!
@@ -34,6 +45,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
     if (!img) return
     setBusy(true)
     setErr(null)
+    await new Promise((r) => requestAnimationFrame(() => r(null))) // let "Exporting…" paint
     try {
       const blob = await exportPhoto(img.bitmap, edits[activeId], {
         format: fmt,
@@ -63,7 +75,9 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
       aria-modal="true"
     >
       <div
-        className="w-[320px] rounded-lg border border-hairline bg-raised p-4"
+        ref={cardRef}
+        tabIndex={-1}
+        className="w-[320px] rounded-lg border border-hairline bg-raised p-4 outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 text-sm font-medium text-fg">Export</div>

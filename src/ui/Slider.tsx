@@ -53,7 +53,6 @@ export function Slider({ label, ck, min = -100, max = 100 }: SliderProps) {
             end(ck)
           }
         }}
-        onFocus={() => begin(ck)}
         onBlur={() => end(ck)}
         onKeyDown={() => begin(ck)}
         onKeyUp={() => end(ck)}
