@@ -22,7 +22,14 @@ export interface ControlParams {
   vibrance: number // -100..100
   saturation: number // -100..100
   crop: CropRect | null // geometry, not a develop slider; null = full frame
+  // HSL / Color Mixer: 8 bands (Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta),
+  // each -100..100. Render-only (the match fit never sets these). null-safe default = zeros.
+  hslHue: number[]
+  hslSat: number[]
+  hslLum: number[]
 }
+
+export const HSL_BANDS = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta']
 
 export const DEFAULT_PARAMS: ControlParams = {
   exposure: 0,
@@ -36,10 +43,13 @@ export const DEFAULT_PARAMS: ControlParams = {
   vibrance: 0,
   saturation: 0,
   crop: null,
+  hslHue: [0, 0, 0, 0, 0, 0, 0, 0],
+  hslSat: [0, 0, 0, 0, 0, 0, 0, 0],
+  hslLum: [0, 0, 0, 0, 0, 0, 0, 0],
 }
 
-/** The numeric develop controls only (excludes `crop`, which is geometry). */
-export type DevelopKey = Exclude<keyof ControlParams, 'crop'>
+/** The scalar numeric develop controls (excludes crop + the HSL arrays). */
+export type DevelopKey = Exclude<keyof ControlParams, 'crop' | 'hslHue' | 'hslSat' | 'hslLum'>
 
 /** A linear-RGB pixel (0..1 nominal; may exceed 1 mid-pipeline before output encode). */
 export type LinearRGB = [number, number, number]

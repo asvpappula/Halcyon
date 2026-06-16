@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CanvasView } from './CanvasView'
 import { Slider } from './Slider'
+import { HslMixer } from './HslMixer'
 import { ReferenceTray } from './ReferenceTray'
 import { ExportDialog } from './ExportDialog'
 import { FunnelHero } from './FunnelHero'
@@ -190,6 +191,10 @@ export function Editor() {
           <Slider label="Tint" ck="tint" />
           <Slider label="Vibrance" ck="vibrance" />
           <Slider label="Saturation" ck="saturation" />
+
+          <div className="mt-5">
+            <HslMixer />
+          </div>
 
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Crop</div>
           <div className="flex flex-wrap gap-1">

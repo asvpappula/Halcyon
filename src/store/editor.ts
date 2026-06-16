@@ -41,8 +41,17 @@ export interface ReferenceMeta {
   url: string // object URL for the thumbnail
 }
 
-// Numeric develop controls only (crop is geometry, edited via setCrop, not a slider).
-export type ControlKey = Exclude<keyof ControlParams, 'crop'>
+// The scalar develop controls (crop is geometry via setCrop; the HSL arrays have
+// their own actions). Mirrors DevelopKey so sliders/scrub stay strictly numeric.
+export type ControlKey = DevelopKey
+
+// HSL / color mixer: one of three channels within a band.
+export type HslChannel = 'hue' | 'sat' | 'lum'
+const HSL_KEY: Record<HslChannel, 'hslHue' | 'hslSat' | 'hslLum'> = {
+  hue: 'hslHue',
+  sat: 'hslSat',
+  lum: 'hslLum',
+}
 
 interface Command {
   before: Partial<ControlParams>
@@ -94,6 +103,10 @@ interface EditorState {
   applyMatchToSelection: () => void
   savePreset: (name: string) => void
   deletePreset: (id: string) => void
+  setHslLive: (band: number, channel: HslChannel, value: number) => void
+  beginHslScrub: (band: number, channel: HslChannel) => void
+  endHslScrub: (band: number, channel: HslChannel) => void
+  resetHsl: () => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -116,6 +129,10 @@ function scheduleSave(id: string, params: ControlParams, storageOk: boolean): vo
 // Keyed by control so an end for a different key can't commit the wrong baseline,
 // and so begin is idempotent across pointer+focus+keydown firing for one gesture.
 let scrub: { key: ControlKey; before: number } | null = null
+
+// Transient HSL scrub capture (parallel to `scrub`, but coalesces one band+channel
+// gesture into a single command capturing that channel's whole 8-band array).
+let hslScrub: { key: 'hslHue' | 'hslSat' | 'hslLum'; before: number[] } | null = null
 
 // Supersede an in-flight match/look animation when a new one starts (prevents two
 // rAF loops fighting over the same photo's params).
@@ -169,6 +186,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
 
   setActive: (id) => {
     scrub = null // drop any pending scrub so it can't commit onto the new photo
+    hslScrub = null
     set({ activeId: id, view: { ...DEFAULT_VIEW } })
   },
 
@@ -387,6 +405,61 @@ export const useEditor = create<EditorState>()((set, get) => ({
     saveUserPresets(next)
   },
 
+  // HSL / color mixer: update one band's value within a channel. Writes a NEW array
+  // (never mutates) so history baselines and referential equality stay intact.
+  setHslLive: (band, channel, value) => {
+    const { activeId, edits, storageOk } = get()
+    if (!activeId) return
+    const key = HSL_KEY[channel]
+    const arr = (edits[activeId][key] ?? DEFAULT_PARAMS[key]).slice()
+    arr[band] = value
+    const next = { ...edits[activeId], [key]: arr }
+    set({ edits: { ...edits, [activeId]: next } })
+    scheduleSave(activeId, next, storageOk)
+  },
+
+  beginHslScrub: (_band, channel) => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const key = HSL_KEY[channel]
+    if (hslScrub && hslScrub.key === key) return // idempotent within one gesture
+    animToken++ // grabbing an HSL slider cancels any in-flight match animation
+    hslScrub = { key, before: (edits[activeId][key] ?? DEFAULT_PARAMS[key]).slice() }
+  },
+
+  endHslScrub: (_band, channel) => {
+    const { activeId, edits } = get()
+    const key = HSL_KEY[channel]
+    if (!activeId || !hslScrub || hslScrub.key !== key) return
+    const before = hslScrub.before
+    const after = (edits[activeId][key] ?? DEFAULT_PARAMS[key]).slice()
+    hslScrub = null
+    if (!arraysEqual(before, after)) {
+      pushCommand(set, get, activeId, { [key]: before }, { [key]: after })
+    }
+  },
+
+  // Reset the whole color mixer (all 24 values) in one undoable command.
+  resetHsl: () => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const cur = edits[activeId]
+    const before: Partial<ControlParams> = {}
+    const after: Partial<ControlParams> = {}
+    let changed = false
+    for (const key of ['hslHue', 'hslSat', 'hslLum'] as const) {
+      const arr = cur[key] ?? DEFAULT_PARAMS[key]
+      if (arr.some((v) => v !== 0)) {
+        before[key] = arr.slice()
+        after[key] = [0, 0, 0, 0, 0, 0, 0, 0]
+        changed = true
+      }
+    }
+    if (!changed) return
+    set({ edits: { ...edits, [activeId]: { ...cur, ...after } } })
+    pushCommand(set, get, activeId, before, after)
+  },
+
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))
     // Merge, don't replace: a photo imported during the async load must survive.
@@ -399,7 +472,8 @@ export const useEditor = create<EditorState>()((set, get) => ({
         if (photoMap[p.id]) continue
         photoMap[p.id] = p
         histMap[p.id] = { stack: [], cursor: 0 }
-        editMap[p.id] = edits[p.id] ?? { ...DEFAULT_PARAMS }
+        // Backfill DEFAULT for any keys an older persisted edit predates (e.g. HSL arrays).
+        editMap[p.id] = { ...DEFAULT_PARAMS, ...edits[p.id] }
         order.push(p.id)
       }
       return {
@@ -413,6 +487,12 @@ export const useEditor = create<EditorState>()((set, get) => ({
     })
   },
 }))
+
+function arraysEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
 
 function pushCommand(
   set: (partial: Partial<EditorState>) => void,

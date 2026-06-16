@@ -19,6 +19,14 @@ export const PARAM_MAP: [DevelopKey, string][] = [
   ['saturation', 'uSaturation'],
 ]
 
+// HSL array uniforms — set together with uniform1fv (render-only color mixer).
+export const HSL_UNIFORMS: [keyof Pick<ControlParams, 'hslHue' | 'hslSat' | 'hslLum'>, string][] = [
+  ['hslHue', 'uHslHue'],
+  ['hslSat', 'uHslSat'],
+  ['hslLum', 'uHslLum'],
+]
+const ZERO8 = [0, 0, 0, 0, 0, 0, 0, 0]
+
 export interface View {
   zoom: number
   panX: number // clip-space offset, -1..1
@@ -96,7 +104,8 @@ export class DevelopRenderer {
     gl.bindVertexArray(null)
 
     gl.useProgram(this.program)
-    for (const name of ['uScale', 'uOffset', 'uImage', ...PARAM_MAP.map((p) => p[1])]) {
+    const names = ['uScale', 'uOffset', 'uImage', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
+    for (const name of names) {
       this.uni[name] = gl.getUniformLocation(this.program, name)
     }
     gl.clearColor(0, 0, 0, 0)
@@ -160,6 +169,7 @@ export class DevelopRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this.tex)
     gl.uniform1i(this.uni.uImage, 0)
     for (const [key, name] of PARAM_MAP) gl.uniform1f(this.uni[name], this.params[key])
+    for (const [key, name] of HSL_UNIFORMS) gl.uniform1fv(this.uni[name], this.params[key] ?? ZERO8)
     const [sx, sy] = this.fitScale()
     gl.uniform2f(this.uni.uScale, sx * this.view.zoom, sy * this.view.zoom)
     gl.uniform2f(this.uni.uOffset, this.view.panX, this.view.panY)

@@ -23,12 +23,12 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 - [ ] Then Phase 2 end gates: /review → /qa → /ship → land-and-deploy → canary.
 
 ## Cherry-picked but deferred (cheap, do soon after launch)
-- [ ] **Save / reuse a look** — persist a created look (anon localStorage first), reapply across shoots. Retention win for repeat brand work.
+- [x] **Save / reuse a look** — presets persist to localStorage (`persist/presets.ts`) + 4 built-in Halcyon looks; save/apply/delete in the ReferenceTray. (Scalar develop values only; HSL/crop excluded for now.)
 - [ ] **Full batch "needs attention" flags** — per-image flags in batch view when normalization/fit is weak. (Match-strength readout itself ships in P2; this is the richer flag UI.)
 - [ ] **Recipe export** — export the fitted slider values as a shareable JSON/preset that also drops into Lightroom. Overlaps the preset/LUT work below; do them together.
 
 ## Develop toolkit (the Lightroom-clone bulk — build only when users ask)
-- [ ] HSL / Color Mixer (8 bands: hue/sat/lum)
+- [x] HSL / Color Mixer (8 bands: hue/sat/lum) — render-only stage in the shader (`shaders.ts` §7), array uniforms, `HslMixer.tsx` UI, undoable per-band scrub. Verified: identity at 0, correct hue/sat/lum, per-band isolation, equivalence gate unaffected.
 - [ ] Color Grading (shadow/mid/highlight wheels + luminance)
 - [ ] Detail — Sharpening (amount/radius/detail/masking) + Noise Reduction (luminance/color)
 - [ ] Effects — Vignette + Grain

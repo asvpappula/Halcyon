@@ -3,7 +3,9 @@
 // Caps the render to the GPU's MAX_TEXTURE_SIZE. docs/FEATURES.md (P2 export).
 
 import type { ControlParams } from './types'
-import { buildProgram, PARAM_MAP } from './pipeline'
+import { buildProgram, PARAM_MAP, HSL_UNIFORMS } from './pipeline'
+
+const ZERO8 = [0, 0, 0, 0, 0, 0, 0, 0]
 
 export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp'
 
@@ -87,6 +89,8 @@ export async function exportPhoto(
     gl.uniform2f(gl.getUniformLocation(prog, 'uScale'), 1, 1)
     gl.uniform2f(gl.getUniformLocation(prog, 'uOffset'), 0, 0)
     for (const [key, name] of PARAM_MAP) gl.uniform1f(gl.getUniformLocation(prog, name), params[key])
+    for (const [key, name] of HSL_UNIFORMS)
+      gl.uniform1fv(gl.getUniformLocation(prog, name), params[key] ?? ZERO8)
 
     gl.viewport(0, 0, renderW, renderH)
     gl.clearColor(0, 0, 0, 1)
