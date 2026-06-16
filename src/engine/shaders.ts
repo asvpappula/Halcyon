@@ -21,6 +21,8 @@ uniform float uExposure, uContrast, uHighlights, uShadows, uWhites, uBlacks, uTe
 uniform float uHslHue[8];
 uniform float uHslSat[8];
 uniform float uHslLum[8];
+uniform float uSharpen, uNoiseReduction, uVignette, uGrain;
+uniform vec2 uTexel; // 1 / source size, for neighbor taps (0 when effects unused)
 
 const float HSL_BANDS[8] = float[8](0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 270.0, 300.0);
 
@@ -41,6 +43,11 @@ vec3 hsv2rgb(vec3 c) {
   vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
+vec3 linSample(vec2 uv) {
+  vec3 t = texture(uImage, uv).rgb;
+  return vec3(srgbToLinear(t.r), srgbToLinear(t.g), srgbToLinear(t.b));
+}
+float hash21(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
 void main() {
   vec3 s = texture(uImage, vUv).rgb;
@@ -104,6 +111,29 @@ void main() {
       hsv.z = max(0.0, hsv.z * (1.0 + lumAdj));
       c = hsv2rgb(hsv);
     }
+  }
+
+  // (8) Detail & Effects — render-only, each gated so 0 = exact identity.
+  // Sharpen and noise reduction share one source-space high-pass: tone ops are mostly
+  // low-frequency, so the source's high frequencies approximate the developed image's.
+  if ((uSharpen > 0.0 || uNoiseReduction > 0.0) && uTexel.x > 0.0) {
+    vec3 c0 = linSample(vUv);
+    vec3 blur = 0.25 * (linSample(vUv + vec2(uTexel.x, 0.0)) + linSample(vUv - vec2(uTexel.x, 0.0)) +
+                        linSample(vUv + vec2(0.0, uTexel.y)) + linSample(vUv - vec2(0.0, uTexel.y)));
+    vec3 high = c0 - blur;
+    c += high * ((uSharpen - uNoiseReduction) / 100.0) * 1.5;
+  }
+
+  // Vignette — radial darken (+) or lighten (-) toward the corners.
+  if (uVignette != 0.0) {
+    float r = length(vUv - 0.5) * 1.41421356;
+    c *= max(0.0, 1.0 - (uVignette / 100.0) * smoothstep(0.2, 1.0, r));
+  }
+
+  // Film grain — monochrome, locked to source pixels so it's stable across zoom/export.
+  if (uGrain > 0.0 && uTexel.x > 0.0) {
+    float g = hash21(floor(vUv / uTexel)) - 0.5;
+    c += vec3(g) * (uGrain / 100.0) * 0.12;
   }
 
   outColor = vec4(linearToSrgb(c.r), linearToSrgb(c.g), linearToSrgb(c.b), 1.0);

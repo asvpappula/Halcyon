@@ -17,6 +17,10 @@ export const PARAM_MAP: [DevelopKey, string][] = [
   ['tint', 'uTint'],
   ['vibrance', 'uVibrance'],
   ['saturation', 'uSaturation'],
+  ['sharpen', 'uSharpen'],
+  ['noiseReduction', 'uNoiseReduction'],
+  ['vignette', 'uVignette'],
+  ['grain', 'uGrain'],
 ]
 
 // HSL array uniforms — set together with uniform1fv (render-only color mixer).
@@ -104,7 +108,7 @@ export class DevelopRenderer {
     gl.bindVertexArray(null)
 
     gl.useProgram(this.program)
-    const names = ['uScale', 'uOffset', 'uImage', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
+    const names = ['uScale', 'uOffset', 'uImage', 'uTexel', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
     for (const name of names) {
       this.uni[name] = gl.getUniformLocation(this.program, name)
     }
@@ -170,6 +174,7 @@ export class DevelopRenderer {
     gl.uniform1i(this.uni.uImage, 0)
     for (const [key, name] of PARAM_MAP) gl.uniform1f(this.uni[name], this.params[key])
     for (const [key, name] of HSL_UNIFORMS) gl.uniform1fv(this.uni[name], this.params[key] ?? ZERO8)
+    gl.uniform2f(this.uni.uTexel, this.imgW ? 1 / this.imgW : 0, this.imgH ? 1 / this.imgH : 0)
     const [sx, sy] = this.fitScale()
     gl.uniform2f(this.uni.uScale, sx * this.view.zoom, sy * this.view.zoom)
     gl.uniform2f(this.uni.uOffset, this.view.panX, this.view.panY)

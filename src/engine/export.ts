@@ -91,6 +91,7 @@ export async function exportPhoto(
     for (const [key, name] of PARAM_MAP) gl.uniform1f(gl.getUniformLocation(prog, name), params[key])
     for (const [key, name] of HSL_UNIFORMS)
       gl.uniform1fv(gl.getUniformLocation(prog, name), params[key] ?? ZERO8)
+    gl.uniform2f(gl.getUniformLocation(prog, 'uTexel'), renderW ? 1 / renderW : 0, renderH ? 1 / renderH : 0)
 
     gl.viewport(0, 0, renderW, renderH)
     gl.clearColor(0, 0, 0, 1)

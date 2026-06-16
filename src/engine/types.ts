@@ -21,6 +21,11 @@ export interface ControlParams {
   tint: number // -100..100  (green<->magenta)
   vibrance: number // -100..100
   saturation: number // -100..100
+  // Detail & Effects (render-only; the match fit never sets these). 0 = off.
+  sharpen: number // 0..100  (unsharp-mask amount)
+  noiseReduction: number // 0..100  (luminance smoothing)
+  vignette: number // -100..100  (+ darkens edges, - lightens)
+  grain: number // 0..100  (film grain intensity)
   crop: CropRect | null // geometry, not a develop slider; null = full frame
   // HSL / Color Mixer: 8 bands (Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta),
   // each -100..100. Render-only (the match fit never sets these). null-safe default = zeros.
@@ -42,6 +47,10 @@ export const DEFAULT_PARAMS: ControlParams = {
   tint: 0,
   vibrance: 0,
   saturation: 0,
+  sharpen: 0,
+  noiseReduction: 0,
+  vignette: 0,
+  grain: 0,
   crop: null,
   hslHue: [0, 0, 0, 0, 0, 0, 0, 0],
   hslSat: [0, 0, 0, 0, 0, 0, 0, 0],

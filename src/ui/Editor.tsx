@@ -196,6 +196,13 @@ export function Editor() {
             <HslMixer />
           </div>
 
+          <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Detail</div>
+          <Slider label="Sharpen" ck="sharpen" min={0} />
+          <Slider label="Noise" ck="noiseReduction" min={0} />
+          <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Effects</div>
+          <Slider label="Vignette" ck="vignette" />
+          <Slider label="Grain" ck="grain" min={0} />
+
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Crop</div>
           <div className="flex flex-wrap gap-1">
             <button
