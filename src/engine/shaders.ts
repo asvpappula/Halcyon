@@ -23,6 +23,7 @@ uniform float uHslHue[8];
 uniform float uHslSat[8];
 uniform float uHslLum[8];
 uniform float uSharpen, uNoiseReduction, uVignette, uGrain;
+uniform float uTexture, uClarity, uDehaze; // Presence (render-only)
 uniform vec2 uTexel; // 1 / source size, for neighbor taps (0 when effects unused)
 uniform sampler2D uCurve; // 256×1 baked tone-curve LUT (master ∘ per-channel)
 uniform float uCurveActive; // 0 = skip (exact identity), 1 = apply
@@ -79,6 +80,36 @@ void main() {
     + 0.5 * (uWhites / 100.0) * ss(0.7, 1.0, Y)
     + 0.5 * (uBlacks / 100.0) * ss(0.3, 0.0, Y);
   c *= toneGain;
+
+  // (4.5) Presence — texture/clarity (local contrast) + dehaze. Render-only, gated
+  // so 0 = exact identity. Local contrast runs in luma space and rescales RGB to
+  // preserve hue. Needs uTexel (the display proxy), so it no-ops in the equivalence gate.
+  if ((uTexture != 0.0 || uClarity != 0.0) && uTexel.x > 0.0) {
+    float Yp = luma(c);
+    float yC = luma(linSample(vUv));
+    float yFine = 0.25 * (luma(linSample(vUv + vec2(uTexel.x, 0.0))) + luma(linSample(vUv - vec2(uTexel.x, 0.0))) +
+                          luma(linSample(vUv + vec2(0.0, uTexel.y))) + luma(linSample(vUv - vec2(0.0, uTexel.y))));
+    float fine = yC - yFine;
+    float R = 3.0;
+    float yCoarse = 0.125 * (
+      luma(linSample(vUv + vec2(R * uTexel.x, 0.0))) + luma(linSample(vUv - vec2(R * uTexel.x, 0.0))) +
+      luma(linSample(vUv + vec2(0.0, R * uTexel.y))) + luma(linSample(vUv - vec2(0.0, R * uTexel.y))) +
+      luma(linSample(vUv + R * uTexel)) + luma(linSample(vUv - R * uTexel)) +
+      luma(linSample(vUv + vec2(R * uTexel.x, -R * uTexel.y))) + luma(linSample(vUv + vec2(-R * uTexel.x, R * uTexel.y))));
+    float coarse = yC - yCoarse;
+    float mid = clamp(1.0 - abs(Yp - 0.5) * 2.0, 0.0, 1.0);
+    float add = fine * (uTexture / 100.0) * 1.2 + coarse * (uClarity / 100.0) * mid * 1.6;
+    float scale = Yp > 1e-4 ? clamp((Yp + add) / Yp, 0.0, 4.0) : 1.0;
+    c *= scale;
+  }
+  // Dehaze — cut (or add) a low-contrast veil: contrast around a low pivot + saturation.
+  if (uDehaze != 0.0) {
+    float d = uDehaze / 100.0;
+    c = (c - 0.3) * (1.0 + d * 0.45) + 0.3;
+    float Yd = luma(c);
+    c = vec3(Yd) + (c - vec3(Yd)) * (1.0 + d * 0.35);
+    c = max(c - d * 0.02, vec3(0.0));
+  }
 
   // (5) tone curve — identity in v1 (matches ops.ts)
 

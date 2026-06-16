@@ -24,6 +24,10 @@ export interface ControlParams {
   tint: number // -100..100  (green<->magenta)
   vibrance: number // -100..100
   saturation: number // -100..100
+  // Presence (render-only; the match fit never sets these). 0 = off.
+  texture: number // -100..100  (fine local contrast)
+  clarity: number // -100..100  (midtone local contrast)
+  dehaze: number // -100..100  (veil removal / add)
   // Detail & Effects (render-only; the match fit never sets these). 0 = off.
   sharpen: number // 0..100  (unsharp-mask amount)
   noiseReduction: number // 0..100  (luminance smoothing)
@@ -54,6 +58,9 @@ export const DEFAULT_PARAMS: ControlParams = {
   tint: 0,
   vibrance: 0,
   saturation: 0,
+  texture: 0,
+  clarity: 0,
+  dehaze: 0,
   sharpen: 0,
   noiseReduction: 0,
   vignette: 0,

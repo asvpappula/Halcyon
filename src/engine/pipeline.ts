@@ -22,6 +22,9 @@ export const PARAM_MAP: [DevelopKey, string][] = [
   ['noiseReduction', 'uNoiseReduction'],
   ['vignette', 'uVignette'],
   ['grain', 'uGrain'],
+  ['texture', 'uTexture'],
+  ['clarity', 'uClarity'],
+  ['dehaze', 'uDehaze'],
 ]
 
 // HSL array uniforms — set together with uniform1fv (render-only color mixer).

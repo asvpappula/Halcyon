@@ -274,6 +274,10 @@ export function Editor() {
           <Slider label="Shadows" ck="shadows" />
           <Slider label="Whites" ck="whites" />
           <Slider label="Blacks" ck="blacks" />
+          <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Presence</div>
+          <Slider label="Texture" ck="texture" />
+          <Slider label="Clarity" ck="clarity" />
+          <Slider label="Dehaze" ck="dehaze" />
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Color</div>
           <Slider label="Temp" ck="temp" />
           <Slider label="Tint" ck="tint" />
