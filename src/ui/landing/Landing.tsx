@@ -131,6 +131,142 @@ function FilmMarquee() {
   )
 }
 
+/** A compact develop-panel slider row for the app preview. */
+function Bar({ label, value, fill, live }: { label: string; value: string; fill: number; live?: boolean }) {
+  return (
+    <div className="grid grid-cols-[56px_1fr_30px] items-center gap-2">
+      <span className="text-[10px] text-fg-muted">{label}</span>
+      <div className="h-[2px] rounded-full bg-hairline-strong">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${fill}%`, background: live ? 'var(--accent)' : 'var(--text-secondary)' }}
+        />
+      </div>
+      <span className="tnum text-right text-[10px] text-fg-dim">{value}</span>
+    </div>
+  )
+}
+
+/** A faithful, on-brand representation of the real Halcyon editor (same 3-panel
+ *  layout, tokens, and controls as the app) — an honest product preview. */
+function AppPreview() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-hairline bg-canvas shadow-[0_50px_140px_-40px_rgba(0,0,0,0.85)]">
+      <div className="flex items-center gap-2 border-b border-hairline bg-panel px-4 py-2.5">
+        <span className="h-2.5 w-2.5 rounded-sm bg-accent" aria-hidden />
+        <span className="text-xs font-medium tracking-tight">Halcyon</span>
+        <span className="ml-1 rounded-md bg-raised px-2 py-0.5 text-[10px] text-fg">Develop</span>
+        <div className="flex-1" />
+        <span className="rounded-md border border-hairline px-2 py-0.5 text-[10px] text-fg-dim">Undo</span>
+        <span className="rounded-md border border-accent px-2 py-0.5 text-[10px] text-accent">Export</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-[132px_1fr_190px]">
+        <div className="hidden flex-col gap-2 border-r border-hairline bg-panel p-3 md:flex">
+          <div className="text-[9px] uppercase tracking-wider text-fg-muted">Reference</div>
+          <img
+            src={img('halcyon-ref-thumb', 240, 240)}
+            alt=""
+            aria-hidden
+            loading="lazy"
+            className="aspect-square w-full rounded-md object-cover"
+            style={{ filter: AFTER }}
+          />
+          <div className="rounded-md border border-accent py-1 text-center text-[10px] text-accent">
+            Apply match
+          </div>
+          <div className="mt-1 text-[9px] uppercase tracking-wider text-fg-muted">Presets</div>
+          {['Warm Film', 'Cool Matte', 'Punch'].map((p) => (
+            <div key={p} className="rounded-md border border-hairline px-2 py-1 text-[10px] text-fg-dim">
+              {p}
+            </div>
+          ))}
+        </div>
+        <div className="grid place-items-center bg-[#0b0b0c] p-4">
+          <img
+            src={img('halcyon-app-photo', 1000, 700)}
+            alt="A photograph being graded in Halcyon"
+            loading="lazy"
+            className="max-h-[340px] w-full rounded-md object-cover"
+            style={{ filter: AFTER }}
+          />
+        </div>
+        <div className="hidden flex-col gap-2 border-l border-hairline bg-panel p-3 md:flex">
+          <div className="text-[9px] uppercase tracking-wider text-fg-muted">Light</div>
+          <Bar label="Exposure" value="+0.45" fill={64} live />
+          <Bar label="Contrast" value="+22" fill={72} />
+          <Bar label="Highlights" value="-18" fill={36} />
+          <Bar label="Shadows" value="+14" fill={60} />
+          <Bar label="Whites" value="+8" fill={55} />
+          <div className="mt-1 text-[9px] uppercase tracking-wider text-fg-muted">Color</div>
+          <Bar label="Temp" value="+6" fill={56} live />
+          <Bar label="Tint" value="-3" fill={47} />
+          <Bar label="Vibrance" value="+12" fill={62} />
+          <div className="mt-1 text-[9px] uppercase tracking-wider text-fg-muted">Color Mixer</div>
+          <div className="flex gap-1">
+            {[0, 30, 60, 120, 180, 240, 270, 300].map((h) => (
+              <span key={h} className="h-4 flex-1 rounded-sm" style={{ background: `hsl(${h} 58% 52%)` }} />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2 overflow-hidden border-t border-hairline bg-panel p-2.5">
+        {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((s, i) => (
+          <img
+            key={s}
+            src={img('halcyon-film-' + s, 140, 100)}
+            alt=""
+            aria-hidden
+            loading="lazy"
+            className={`h-10 w-14 shrink-0 rounded object-cover ${i === 2 ? 'ring-1 ring-accent' : ''}`}
+            style={{ filter: AFTER }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const FEATURES = [
+  {
+    seed: 'halcyon-feat-match',
+    title: 'Reference match',
+    body: 'Drop any photo. Lab-space color transfer is fit onto editable sliders, not a locked filter.',
+    wide: true,
+  },
+  { seed: 'halcyon-feat-hsl', title: 'HSL color mixer', body: 'Eight bands of hue, saturation, and luminance.' },
+  { seed: 'halcyon-feat-curve', title: 'Tone curves', body: 'Master plus per-channel RGB, point by point.' },
+  { seed: 'halcyon-feat-lut', title: 'Film LUTs', body: 'Import any .cube and dial the strength.' },
+  { seed: 'halcyon-feat-batch', title: 'Smart batch', body: 'One look across a whole shoot, normalized per frame.' },
+]
+
+function Features() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {FEATURES.map((f) => (
+        <div
+          key={f.seed}
+          className={`group overflow-hidden rounded-xl border border-hairline bg-panel ${f.wide ? 'sm:col-span-2' : ''}`}
+        >
+          <div className={`overflow-hidden ${f.wide ? 'aspect-[2.6/1]' : 'aspect-[4/3]'}`}>
+            <img
+              src={img(f.seed, f.wide ? 1000 : 520, f.wide ? 384 : 390)}
+              alt=""
+              aria-hidden
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+              style={{ filter: AFTER }}
+            />
+          </div>
+          <div className="p-4">
+            <h3 className="font-display text-lg font-semibold tracking-tight">{f.title}</h3>
+            <p className="mt-1 text-sm leading-relaxed text-fg-muted">{f.body}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function Landing({ onEnter }: { onEnter: () => void }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -284,6 +420,34 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
                 shaping. Nothing baked, nothing hidden. You always see exactly what it did.
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* the app itself — faithful editor preview */}
+        <section className="mx-auto max-w-6xl px-6 py-24">
+          <h2 className="reveal max-w-3xl font-display text-4xl font-semibold leading-tight tracking-tight text-balance sm:text-5xl">
+            A full develop room. Nothing to learn.
+          </h2>
+          <p className="reveal mt-5 max-w-xl text-base leading-relaxed text-fg-muted">
+            Light, color, curves, HSL, detail, effects, crop, and LUTs. The Lightroom controls you
+            already know, in a dark room that keeps your eye on the photo.
+          </p>
+          <div className="reveal mt-10">
+            <AppPreview />
+          </div>
+        </section>
+
+        {/* feature showcase */}
+        <section className="mx-auto max-w-6xl px-6 pb-24">
+          <h2 className="reveal max-w-2xl font-display text-4xl font-semibold leading-tight tracking-tight text-balance sm:text-5xl">
+            More than a match.
+          </h2>
+          <p className="reveal mt-5 max-w-xl text-base leading-relaxed text-fg-muted">
+            Every adjustment is non-destructive, with full history and undo. Copy a look and paste it
+            across the shoot. Save your own presets.
+          </p>
+          <div className="reveal mt-10">
+            <Features />
           </div>
         </section>
 

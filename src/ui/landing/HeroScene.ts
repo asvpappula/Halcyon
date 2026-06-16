@@ -62,7 +62,7 @@ export function createHeroScene(canvas: HTMLCanvasElement): HeroSceneHandle {
   scene.add(aurora)
 
   // --- Particle light-field ---
-  const COUNT = window.innerWidth < 768 ? 1400 : 3200
+  const COUNT = window.innerWidth < 768 ? 2000 : 4600
   const pGeo = new THREE.BufferGeometry()
   const pos = new Float32Array(COUNT * 3)
   const col = new Float32Array(COUNT * 3)
@@ -111,44 +111,6 @@ export function createHeroScene(canvas: HTMLCanvasElement): HeroSceneHandle {
   const points = new THREE.Points(pGeo, pMat)
   scene.add(points)
 
-  // --- Drifting film frames ---
-  const frameGeo = new THREE.PlaneGeometry(3.2, 2.1)
-  const frameMatProto = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    uniforms: { uTint: { value: 0.5 } },
-    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `
-      precision highp float;
-      varying vec2 vUv;
-      uniform float uTint;
-      void main(){
-        vec2 b = min(vUv, 1.0 - vUv);
-        float edge = min(b.x, b.y);
-        float border = smoothstep(0.0, 0.010, edge) - smoothstep(0.026, 0.04, edge);
-        vec3 gold = vec3(0.79, 0.66, 0.38);
-        vec3 inner = mix(vec3(0.09, 0.11, 0.15), vec3(0.20, 0.17, 0.13), vUv.x + uTint * 0.3);
-        float innerMask = smoothstep(0.04, 0.052, edge);
-        vec3 c = inner * innerMask + gold * border;
-        gl_FragColor = vec4(c, innerMask * 0.45 + border * 0.9);
-      }`,
-  })
-  const frameGroup = new THREE.Group()
-  const frameMats: THREE.ShaderMaterial[] = []
-  for (let i = 0; i < 6; i++) {
-    const mat = frameMatProto.clone()
-    mat.uniforms.uTint.value = Math.random()
-    frameMats.push(mat)
-    const m = new THREE.Mesh(frameGeo, mat)
-    m.position.set((Math.random() * 2 - 1) * 13, (Math.random() * 2 - 1) * 7, (Math.random() * 2 - 1) * 6 - 4)
-    m.rotation.z = (Math.random() * 2 - 1) * 0.28
-    m.userData.spin = (Math.random() * 2 - 1) * 0.04
-    m.userData.phase = Math.random() * 6.28
-    frameGroup.add(m)
-  }
-  scene.add(frameGroup)
-
   // --- Interaction + loop ---
   let mx = 0
   let my = 0
@@ -182,11 +144,6 @@ export function createHeroScene(canvas: HTMLCanvasElement): HeroSceneHandle {
     camera.position.y = -cmy * 2.2
     camera.lookAt(0, 0, 0)
     points.rotation.y = t * 0.02
-    frameGroup.children.forEach((m, i) => {
-      m.position.y += Math.sin(t * 0.2 + (m.userData.phase as number)) * 0.0009
-      m.rotation.z += (m.userData.spin as number) * 0.01
-      void i
-    })
     renderer.render(scene, camera)
     raf = requestAnimationFrame(tick)
   }
@@ -205,8 +162,6 @@ export function createHeroScene(canvas: HTMLCanvasElement): HeroSceneHandle {
       pMat.dispose()
       aurora.geometry.dispose()
       auroraMat.dispose()
-      frameGeo.dispose()
-      frameMats.forEach((m) => m.dispose())
       renderer.dispose()
     },
   }
