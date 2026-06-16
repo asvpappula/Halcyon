@@ -66,6 +66,7 @@ export function ReferenceTray() {
 
   return (
     <aside
+      aria-label="Reference and presets"
       className="flex w-[200px] shrink-0 flex-col gap-3 overflow-y-auto border-r border-hairline bg-panel p-3"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {

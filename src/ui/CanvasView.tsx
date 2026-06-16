@@ -177,6 +177,8 @@ export function CanvasView() {
     <div className="relative h-full w-full overflow-hidden bg-canvas">
       <canvas
         ref={canvasRef}
+        role="img"
+        aria-label={compare ? 'Photo preview (showing original)' : 'Photo preview'}
         className="block h-full w-full"
         style={{ cursor: view.zoom > 1 ? 'grab' : 'default', touchAction: 'none' }}
         onPointerDown={onPointerDown}

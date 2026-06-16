@@ -31,6 +31,11 @@ export const HSL_UNIFORMS: [keyof Pick<ControlParams, 'hslHue' | 'hslSat' | 'hsl
   ['hslLum', 'uHslLum'],
 ]
 const ZERO8 = [0, 0, 0, 0, 0, 0, 0, 0]
+// Cap the on-screen working texture. The display canvas is far smaller than a modern
+// photo, so a proxy renders identically while using a fraction of the GPU memory/upload
+// — and never exceeds MAX_TEXTURE_SIZE (huge images would otherwise fail to upload).
+// Export uses its own full-res path, so output quality is unaffected.
+const DISPLAY_MAX = 4096
 
 export interface View {
   zoom: number
@@ -84,6 +89,7 @@ export class DevelopRenderer {
   private uni: Record<string, WebGLUniformLocation | null> = {}
   private imgW = 0
   private imgH = 0
+  private maxTex = 4096
   private params: ControlParams = { ...DEFAULT_PARAMS }
   private view: View = { ...DEFAULT_VIEW }
 
@@ -95,6 +101,7 @@ export class DevelopRenderer {
     })
     if (!gl) throw new Error('WebGL2 not supported on this device')
     this.gl = gl
+    this.maxTex = (gl.getParameter(gl.MAX_TEXTURE_SIZE) as number) || 4096
     this.program = buildProgram(gl)
 
     const vao = gl.createVertexArray()
@@ -132,15 +139,35 @@ export class DevelopRenderer {
   setImage(src: TexImageSource, w: number, h: number): void {
     const gl = this.gl
     if (!this.tex) this.tex = gl.createTexture()
+    // Downscale to a display proxy if the image exceeds the cap (aspect preserved).
+    const cap = Math.min(this.maxTex, DISPLAY_MAX)
+    let texSrc: TexImageSource = src
+    let tw = w
+    let th = h
+    const drawable = !(typeof ImageData !== 'undefined' && src instanceof ImageData)
+    if (Math.max(w, h) > cap && drawable) {
+      const s = cap / Math.max(w, h)
+      tw = Math.max(1, Math.round(w * s))
+      th = Math.max(1, Math.round(h * s))
+      const scratch = document.createElement('canvas')
+      scratch.width = tw
+      scratch.height = th
+      const ctx = scratch.getContext('2d')
+      if (ctx) {
+        ctx.imageSmoothingQuality = 'high'
+        ctx.drawImage(src as CanvasImageSource, 0, 0, tw, th)
+        texSrc = scratch
+      }
+    }
     gl.bindTexture(gl.TEXTURE_2D, this.tex)
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src)
-    this.imgW = w
-    this.imgH = h
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texSrc)
+    this.imgW = tw
+    this.imgH = th
   }
 
   setParams(p: ControlParams): void {

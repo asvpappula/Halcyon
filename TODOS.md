@@ -50,6 +50,9 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 - [x] Replace blocking `alert()`/`prompt()` with a toast system (`store/toast.ts` + `ui/Toaster.tsx`) and an inline preset-name input.
 - [x] Before/after compare — hold the "Before" button or `\` to render the unedited original (serves the "I saw exactly what it did" north star).
 - [ ] Connect repo to Netlify + first deploy (needs user action — accounts/credentials).
+- [x] Large-image display proxy — the on-screen working texture is capped to min(MAX_TEXTURE_SIZE, 4096) with a high-quality downscale (export still full-res). Prevents huge-image upload failures + cuts GPU memory.
+- [x] Keyboard shortcuts — ←/→ navigate photos; 1–5 rate; P/X/U flag; `\` compare; Ctrl/Cmd+Z/Y undo/redo; 0 reset view (all input-guarded).
+- [x] Accessibility pass — canvas role/label (reflects compare), labelled panels (Develop / Reference), aria-labels on icon buttons, focus-visible rings, dialog/toast roles.
 
 ## Accounts + backend (only when persistence/teams are demanded)
 - [ ] Supabase Auth (email + one OAuth) + Postgres + Storage
@@ -64,7 +67,7 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 - [ ] TIFF + WebP, watermark (text/image), advanced resize
 
 ## Phase 1 review fast-follows (from staff-eng review)
-- [ ] Large-image proxy: downscale working texture + compute fit/stats on a 256px proxy (Phase 8 perf; currently uploads full-res).
+- [x] Large-image proxy: working texture downscaled to min(MAX_TEXTURE_SIZE, 4096); fit/stats already run on a 256px proxy (`proxyPixels`). (Worker-offload for very large batches still pending.)
 - [ ] Context-loss: basic rebuild-on-restore is in; add a real device test on low-memory mobile.
 - [ ] Orphan edits: `loadAll` drops edits whose blob is missing — fine for now; add a cleanup sweep when library lands.
 

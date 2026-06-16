@@ -162,6 +162,13 @@ export function Editor() {
         st.setFlag(id, st.flags[id] === 'reject' ? null : 'reject')
       } else if (e.key === 'u' || e.key === 'U') {
         st.setFlag(id, null)
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const idx = st.order.indexOf(id)
+        const ni = e.key === 'ArrowLeft' ? idx - 1 : idx + 1
+        if (idx >= 0 && ni >= 0 && ni < st.order.length) {
+          e.preventDefault()
+          st.setActive(st.order[ni])
+        }
       }
     }
     window.addEventListener('keydown', onKey)
@@ -197,6 +204,7 @@ export function Editor() {
           onPointerUp={() => setCompare(false)}
           onPointerLeave={() => setCompare(false)}
           disabled={!activeId}
+          aria-label="Compare with original (hold)"
           title="Hold to see the original (or hold \ )"
           className="rounded-md border border-hairline px-3 py-1.5 text-xs text-fg-dim transition-colors hover:bg-raised disabled:cursor-not-allowed disabled:opacity-40"
         >
@@ -248,7 +256,10 @@ export function Editor() {
         <main className="min-w-0 flex-1">
           <CanvasView />
         </main>
-        <aside className="w-[264px] shrink-0 overflow-y-auto border-l border-hairline bg-panel px-4 py-3">
+        <aside
+          aria-label="Develop controls"
+          className="w-[264px] shrink-0 overflow-y-auto border-l border-hairline bg-panel px-4 py-3"
+        >
           <div className="mb-1 text-[11px] uppercase tracking-wider text-fg-muted">Light</div>
           <Slider label="Exposure" ck="exposure" />
           <Slider label="Contrast" ck="contrast" />
