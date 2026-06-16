@@ -76,6 +76,15 @@ export function Editor() {
   const applyMatchToSelection = useEditor((s) => s.applyMatchToSelection)
   const targetStats = useEditor((s) => s.targetStats)
   const pushToast = useToasts((s) => s.push)
+  const copySettings = useEditor((s) => s.copySettings)
+  const pasteSettings = useEditor((s) => s.pasteSettings)
+  const pasteToSelection = useEditor((s) => s.pasteToSelection)
+  const clipboard = useEditor((s) => s.clipboard)
+
+  const doCopy = () => {
+    copySettings()
+    pushToast('Settings copied')
+  }
 
   const shareLook = async () => {
     if (!activeId) return
@@ -133,6 +142,16 @@ export function Editor() {
         </TopButton>
         <TopButton onClick={redo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)">
           Redo
+        </TopButton>
+        <TopButton onClick={doCopy} disabled={!activeId} title="Copy this photo's develop settings">
+          Copy
+        </TopButton>
+        <TopButton
+          onClick={pasteSettings}
+          disabled={!activeId || !clipboard}
+          title={clipboard ? 'Paste settings onto this photo' : 'Copy settings from a photo first'}
+        >
+          Paste
         </TopButton>
         <TopButton onClick={resetView} title="Reset view (0)">
           Reset view
@@ -263,14 +282,28 @@ export function Editor() {
                   Matching {batchProgress.done}/{batchProgress.total}…
                 </span>
               ) : (
-                <button
-                  onClick={applyMatchToSelection}
-                  disabled={!targetStats}
-                  className="rounded-md border border-accent px-2 py-1 text-[11px] text-accent transition-colors hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-40"
-                  title={targetStats ? undefined : 'Add a reference look first'}
-                >
-                  Apply match to {selection.length}
-                </button>
+                <>
+                  <button
+                    onClick={applyMatchToSelection}
+                    disabled={!targetStats}
+                    className="rounded-md border border-accent px-2 py-1 text-[11px] text-accent transition-colors hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-40"
+                    title={targetStats ? undefined : 'Add a reference look first'}
+                  >
+                    Apply match to {selection.length}
+                  </button>
+                  {clipboard && (
+                    <button
+                      onClick={() => {
+                        pasteToSelection()
+                        pushToast(`Pasted to ${selection.length} ${selection.length === 1 ? 'photo' : 'photos'}`)
+                      }}
+                      className="rounded-md border border-hairline px-2 py-1 text-[11px] text-fg-dim transition-colors hover:bg-hover"
+                      title="Paste copied settings onto the selected photos"
+                    >
+                      Paste to {selection.length}
+                    </button>
+                  )}
+                </>
               ))}
           </div>
           <div className="flex flex-1 items-center gap-2 overflow-x-auto">

@@ -87,6 +87,7 @@ interface EditorState {
   selection: string[]
   batchProgress: { done: number; total: number } | null
   userPresets: Preset[]
+  clipboard: Partial<ControlParams> | null
 
   addPhoto: (meta: PhotoMeta, bitmap: ImageBitmap, bytes?: Blob) => void
   setActive: (id: string) => void
@@ -123,6 +124,9 @@ interface EditorState {
   addCurvePoint: (channel: CurveChannel, x: number, y: number) => void
   removeCurvePoint: (channel: CurveChannel, index: number) => void
   resetCurves: () => void
+  copySettings: () => void
+  pasteSettings: () => void
+  pasteToSelection: () => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -187,6 +191,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   selection: [],
   batchProgress: null,
   userPresets: loadUserPresets(),
+  clipboard: null,
 
   addPhoto: (meta, bitmap, bytes) => {
     images.set(meta.id, { bitmap, width: meta.width, height: meta.height })
@@ -545,6 +550,27 @@ export const useEditor = create<EditorState>()((set, get) => ({
     pushCommand(set, get, activeId, { curves: before }, { curves: next })
   },
 
+  // Copy the active photo's full look (every develop field except crop) to the clipboard.
+  copySettings: () => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    set({ clipboard: snapshotLook(edits[activeId]) })
+  },
+
+  // Paste the clipboard look onto the active photo (one undo command).
+  pasteSettings: () => {
+    const { activeId, clipboard } = get()
+    if (!activeId || !clipboard) return
+    pasteClip(set, get, activeId, clipboard)
+  },
+
+  // Paste the clipboard look onto every selected photo (one command each).
+  pasteToSelection: () => {
+    const { selection, clipboard } = get()
+    if (!clipboard || selection.length === 0) return
+    for (const id of selection) pasteClip(set, get, id, clipboard)
+  },
+
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))
     // Merge, don't replace: a photo imported during the async load must survive.
@@ -577,6 +603,45 @@ function arraysEqual(a: number[], b: number[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+// Snapshot a photo's full look (every develop field except crop), deep-cloning the
+// structured fields so the clipboard stays independent of further edits.
+function snapshotLook(p: ControlParams): Partial<ControlParams> {
+  const { crop: _crop, curves, hslHue, hslSat, hslLum, ...scalars } = p
+  return {
+    ...scalars,
+    curves: cloneCurves(curves ?? IDENTITY_CURVES()),
+    hslHue: [...(hslHue ?? [])],
+    hslSat: [...(hslSat ?? [])],
+    hslLum: [...(hslLum ?? [])],
+  }
+}
+
+function cloneVal<K extends keyof ControlParams>(k: K, v: ControlParams[K]): ControlParams[K] {
+  if (k === 'curves') return cloneCurves(v as CurveSet) as ControlParams[K]
+  if (Array.isArray(v)) return [...v] as unknown as ControlParams[K]
+  return v
+}
+
+// Paste a clipboard look onto one photo as a single undo command.
+function pasteClip(
+  set: (partial: Partial<EditorState>) => void,
+  get: () => EditorState,
+  id: string,
+  clip: Partial<ControlParams>,
+): void {
+  const cur = get().edits[id]
+  if (!cur) return
+  const keys = Object.keys(clip) as (keyof ControlParams)[]
+  const before: Record<string, unknown> = {}
+  const after: Record<string, unknown> = {}
+  for (const k of keys) {
+    before[k] = cloneVal(k, cur[k])
+    after[k] = cloneVal(k, clip[k] as ControlParams[typeof k])
+  }
+  set({ edits: { ...get().edits, [id]: { ...cur, ...after } } })
+  pushCommand(set, get, id, before as Partial<ControlParams>, after as Partial<ControlParams>)
 }
 
 function pushCommand(

@@ -43,7 +43,7 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 ## Presets + LUTs
 - [x] User presets (save/apply/delete) + built-in starter looks — `persist/presets.ts` + ReferenceTray (inline name input).
 - [ ] .cube LUT import as a pipeline layer
-- [ ] Copy/paste develop settings across photos
+- [x] Copy/paste develop settings across photos — clipboard copies the full look (all develop fields except crop, deep-cloned), Copy/Paste in the top bar + "Paste to N" in the batch footer; one undo command per paste. Verified incl. HSL/curve fields + clipboard independence.
 
 ## Launch prep
 - [x] Netlify deploy config (`netlify.toml` + `public/_redirects`), README, pushed to GitHub (asvpappula/Halcyon).
