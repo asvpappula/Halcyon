@@ -10,6 +10,13 @@ import {
   type LabStats,
 } from '../engine/types'
 import { DEFAULT_VIEW, type View } from '../engine/pipeline'
+import {
+  IDENTITY_CURVES,
+  cloneCurves,
+  isCurveActive,
+  type CurvePoint,
+  type CurveSet,
+} from '../engine/curve'
 import { computeMatch, computeTargetStats, type MatchParams } from '../engine/match'
 import { persistEdit, persistPhoto, type PhotoRow } from '../persist/db'
 import { loadUserPresets, saveUserPresets, type Preset } from '../persist/presets'
@@ -44,6 +51,9 @@ export interface ReferenceMeta {
 // The scalar develop controls (crop is geometry via setCrop; the HSL arrays have
 // their own actions). Mirrors DevelopKey so sliders/scrub stay strictly numeric.
 export type ControlKey = DevelopKey
+
+// Tone-curve channel: master (rgb) or an individual color channel.
+export type CurveChannel = 'rgb' | 'r' | 'g' | 'b'
 
 // HSL / color mixer: one of three channels within a band.
 export type HslChannel = 'hue' | 'sat' | 'lum'
@@ -107,6 +117,12 @@ interface EditorState {
   beginHslScrub: (band: number, channel: HslChannel) => void
   endHslScrub: (band: number, channel: HslChannel) => void
   resetHsl: () => void
+  setCurve: (channel: CurveChannel, points: CurvePoint[]) => void
+  beginCurveScrub: () => void
+  endCurveScrub: () => void
+  addCurvePoint: (channel: CurveChannel, x: number, y: number) => void
+  removeCurvePoint: (channel: CurveChannel, index: number) => void
+  resetCurves: () => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -133,6 +149,10 @@ let scrub: { key: ControlKey; before: number } | null = null
 // Transient HSL scrub capture (parallel to `scrub`, but coalesces one band+channel
 // gesture into a single command capturing that channel's whole 8-band array).
 let hslScrub: { key: 'hslHue' | 'hslSat' | 'hslLum'; before: number[] } | null = null
+
+// Transient tone-curve scrub: one point drag coalesces to a single command that
+// captures the whole curve set (master + R/G/B) before/after.
+let curveScrub: { before: CurveSet } | null = null
 
 // Supersede an in-flight match/look animation when a new one starts (prevents two
 // rAF loops fighting over the same photo's params).
@@ -187,6 +207,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   setActive: (id) => {
     scrub = null // drop any pending scrub so it can't commit onto the new photo
     hslScrub = null
+    curveScrub = null
     set({ activeId: id, view: { ...DEFAULT_VIEW } })
   },
 
@@ -458,6 +479,70 @@ export const useEditor = create<EditorState>()((set, get) => ({
     if (!changed) return
     set({ edits: { ...edits, [activeId]: { ...cur, ...after } } })
     pushCommand(set, get, activeId, before, after)
+  },
+
+  // Tone curve: live-update one channel's points (no history) while dragging.
+  setCurve: (channel, points) => {
+    const { activeId, edits, storageOk } = get()
+    if (!activeId) return
+    const cur = edits[activeId].curves ?? IDENTITY_CURVES()
+    const next = { ...edits[activeId], curves: { ...cur, [channel]: points } }
+    set({ edits: { ...edits, [activeId]: next } })
+    scheduleSave(activeId, next, storageOk)
+  },
+
+  beginCurveScrub: () => {
+    const { activeId, edits } = get()
+    if (!activeId || curveScrub) return
+    animToken++ // grabbing a curve point cancels any in-flight match animation
+    curveScrub = { before: cloneCurves(edits[activeId].curves ?? IDENTITY_CURVES()) }
+  },
+
+  endCurveScrub: () => {
+    const { activeId, edits } = get()
+    if (!activeId || !curveScrub) return
+    const before = curveScrub.before
+    const after = edits[activeId].curves ?? IDENTITY_CURVES()
+    curveScrub = null
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      pushCommand(set, get, activeId, { curves: before }, { curves: cloneCurves(after) })
+    }
+  },
+
+  // Add a point (commits immediately) — keeps the channel sorted by x.
+  addCurvePoint: (channel, x, y) => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const cur = edits[activeId].curves ?? IDENTITY_CURVES()
+    const before = cloneCurves(cur)
+    const pts = [...cur[channel], { x, y }].sort((a, b) => a.x - b.x)
+    const next = { ...cur, [channel]: pts }
+    set({ edits: { ...edits, [activeId]: { ...edits[activeId], curves: next } } })
+    pushCommand(set, get, activeId, { curves: before }, { curves: cloneCurves(next) })
+  },
+
+  // Remove an interior point (endpoints are kept to anchor black/white).
+  removeCurvePoint: (channel, index) => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const cur = edits[activeId].curves ?? IDENTITY_CURVES()
+    const pts = cur[channel]
+    if (index <= 0 || index >= pts.length - 1) return
+    const before = cloneCurves(cur)
+    const next = { ...cur, [channel]: pts.filter((_, i) => i !== index) }
+    set({ edits: { ...edits, [activeId]: { ...edits[activeId], curves: next } } })
+    pushCommand(set, get, activeId, { curves: before }, { curves: cloneCurves(next) })
+  },
+
+  resetCurves: () => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const cur = edits[activeId].curves
+    if (!isCurveActive(cur)) return
+    const before = cloneCurves(cur ?? IDENTITY_CURVES())
+    const next = IDENTITY_CURVES()
+    set({ edits: { ...edits, [activeId]: { ...edits[activeId], curves: next } } })
+    pushCommand(set, get, activeId, { curves: before }, { curves: next })
   },
 
   hydrate: (photos, edits, imgs) => {

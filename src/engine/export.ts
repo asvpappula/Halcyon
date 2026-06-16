@@ -4,6 +4,7 @@
 
 import type { ControlParams } from './types'
 import { buildProgram, PARAM_MAP, HSL_UNIFORMS } from './pipeline'
+import { buildCurveLut, isCurveActive } from './curve'
 
 const ZERO8 = [0, 0, 0, 0, 0, 0, 0, 0]
 
@@ -61,6 +62,7 @@ export async function exportPhoto(
   let vao: WebGLVertexArrayObject | null = null
   let buf: WebGLBuffer | null = null
   let tex: WebGLTexture | null = null
+  let curveTex: WebGLTexture | null = null
   try {
     prog = buildProgram(gl)
     vao = gl.createVertexArray()
@@ -92,6 +94,21 @@ export async function exportPhoto(
     for (const [key, name] of HSL_UNIFORMS)
       gl.uniform1fv(gl.getUniformLocation(prog, name), params[key] ?? ZERO8)
     gl.uniform2f(gl.getUniformLocation(prog, 'uTexel'), renderW ? 1 / renderW : 0, renderH ? 1 / renderH : 0)
+
+    const curveActive = isCurveActive(params.curves)
+    gl.uniform1f(gl.getUniformLocation(prog, 'uCurveActive'), curveActive ? 1 : 0)
+    if (curveActive && params.curves) {
+      curveTex = gl.createTexture()
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, curveTex)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, buildCurveLut(params.curves))
+      gl.uniform1i(gl.getUniformLocation(prog, 'uCurve'), 1)
+      gl.activeTexture(gl.TEXTURE0)
+    }
 
     gl.viewport(0, 0, renderW, renderH)
     gl.clearColor(0, 0, 0, 1)
@@ -131,6 +148,7 @@ export async function exportPhoto(
     return blob
   } finally {
     if (tex) gl.deleteTexture(tex)
+    if (curveTex) gl.deleteTexture(curveTex)
     if (buf) gl.deleteBuffer(buf)
     if (vao) gl.deleteVertexArray(vao)
     if (prog) gl.deleteProgram(prog)

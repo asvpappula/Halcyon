@@ -5,6 +5,7 @@
 import type { ControlParams, DevelopKey } from './types'
 import { DEFAULT_PARAMS } from './types'
 import { VERT, FRAG } from './shaders'
+import { buildCurveLut, isCurveActive, type CurveSet } from './curve'
 
 export const PARAM_MAP: [DevelopKey, string][] = [
   ['exposure', 'uExposure'],
@@ -74,6 +75,9 @@ export class DevelopRenderer {
   private program: WebGLProgram
   private vao: WebGLVertexArrayObject
   private tex: WebGLTexture | null = null
+  private curveTex: WebGLTexture | null = null
+  private lastCurves: CurveSet | null | undefined = undefined
+  private curveActive = false
   private uni: Record<string, WebGLUniformLocation | null> = {}
   private imgW = 0
   private imgH = 0
@@ -108,7 +112,7 @@ export class DevelopRenderer {
     gl.bindVertexArray(null)
 
     gl.useProgram(this.program)
-    const names = ['uScale', 'uOffset', 'uImage', 'uTexel', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
+    const names = ['uScale', 'uOffset', 'uImage', 'uTexel', 'uCurve', 'uCurveActive', ...PARAM_MAP.map((p) => p[1]), ...HSL_UNIFORMS.map((p) => p[1])]
     for (const name of names) {
       this.uni[name] = gl.getUniformLocation(this.program, name)
     }
@@ -163,18 +167,46 @@ export class DevelopRenderer {
     return Ia > Va ? [1, Va / Ia] : [Ia / Va, 1]
   }
 
+  // Rebuild + upload the tone-curve LUT only when the curve set reference changes.
+  private syncCurve(): void {
+    const gl = this.gl
+    const curves = this.params.curves
+    if (curves === this.lastCurves) return
+    this.lastCurves = curves
+    this.curveActive = isCurveActive(curves)
+    if (this.curveActive && curves) {
+      if (!this.curveTex) this.curveTex = gl.createTexture()
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, this.curveTex)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, buildCurveLut(curves))
+      gl.activeTexture(gl.TEXTURE0)
+    }
+  }
+
   render(): void {
     const gl = this.gl
     gl.clear(gl.COLOR_BUFFER_BIT)
     if (!this.tex) return
     gl.useProgram(this.program)
     gl.bindVertexArray(this.vao)
+    this.syncCurve()
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.tex)
     gl.uniform1i(this.uni.uImage, 0)
     for (const [key, name] of PARAM_MAP) gl.uniform1f(this.uni[name], this.params[key])
     for (const [key, name] of HSL_UNIFORMS) gl.uniform1fv(this.uni[name], this.params[key] ?? ZERO8)
     gl.uniform2f(this.uni.uTexel, this.imgW ? 1 / this.imgW : 0, this.imgH ? 1 / this.imgH : 0)
+    gl.uniform1f(this.uni.uCurveActive, this.curveActive ? 1 : 0)
+    if (this.curveActive && this.curveTex) {
+      gl.activeTexture(gl.TEXTURE1)
+      gl.bindTexture(gl.TEXTURE_2D, this.curveTex)
+      gl.uniform1i(this.uni.uCurve, 1)
+      gl.activeTexture(gl.TEXTURE0)
+    }
     const [sx, sy] = this.fitScale()
     gl.uniform2f(this.uni.uScale, sx * this.view.zoom, sy * this.view.zoom)
     gl.uniform2f(this.uni.uOffset, this.view.panX, this.view.panY)
@@ -188,6 +220,7 @@ export class DevelopRenderer {
     // otherwise reuse a dead context. The context is freed when the canvas is GC'd.
     const gl = this.gl
     if (this.tex) gl.deleteTexture(this.tex)
+    if (this.curveTex) gl.deleteTexture(this.curveTex)
     gl.deleteVertexArray(this.vao)
     gl.deleteProgram(this.program)
   }

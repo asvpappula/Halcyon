@@ -33,7 +33,7 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 - [x] Detail — Sharpening (unsharp amount) + Noise Reduction (luminance), shared source-space high-pass in `shaders.ts` §8. (Radius/detail/masking + color-NR deferred refinements.)
 - [x] Effects — Vignette (radial darken/lighten) + Grain (monochrome, source-locked). Verified through the shader. (Post-crop vignette deferred; v1 is lens-style over the full frame.)
 - [ ] Geometry — perspective correction, straighten, rotate (basic crop ships in P2)
-- [ ] Manual tone-curve point editing + per-channel RGB curves (the *fitted* curve ships in P2)
+- [x] Manual tone-curve point editing + per-channel RGB curves — monotone-cubic curve math (`engine/curve.ts`, 7 tests) baked into a 256-LUT sampled in `shaders.ts` §9 (gated identity), interactive `CurveEditor.tsx` (drag/add/remove, master+R/G/B), undoable. Verified: S-curve + per-channel isolation through the shader.
 
 ## Library + organization
 - [ ] Collections (create/rename/delete/assign)

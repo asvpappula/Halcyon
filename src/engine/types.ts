@@ -1,6 +1,8 @@
 // Core engine types. Framework-free (no React/DOM) so the engine is unit-testable
 // headless and reusable inside Web Workers. See docs/ARCHITECTURE.md and docs/ENGINE-SPEC.md.
 
+import { IDENTITY_CURVES, type CurveSet } from './curve'
+
 /** Crop region in normalized image coordinates (0..1), top-left origin. null = full frame. */
 export interface CropRect {
   x: number
@@ -32,6 +34,8 @@ export interface ControlParams {
   hslHue: number[]
   hslSat: number[]
   hslLum: number[]
+  // Tone curve: master (RGB) + per-channel point sets (render-only). null-safe via DEFAULT.
+  curves: CurveSet
 }
 
 export const HSL_BANDS = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta']
@@ -55,10 +59,14 @@ export const DEFAULT_PARAMS: ControlParams = {
   hslHue: [0, 0, 0, 0, 0, 0, 0, 0],
   hslSat: [0, 0, 0, 0, 0, 0, 0, 0],
   hslLum: [0, 0, 0, 0, 0, 0, 0, 0],
+  curves: IDENTITY_CURVES(),
 }
 
-/** The scalar numeric develop controls (excludes crop + the HSL arrays). */
-export type DevelopKey = Exclude<keyof ControlParams, 'crop' | 'hslHue' | 'hslSat' | 'hslLum'>
+/** The scalar numeric develop controls (excludes crop + the HSL arrays + curves). */
+export type DevelopKey = Exclude<
+  keyof ControlParams,
+  'crop' | 'hslHue' | 'hslSat' | 'hslLum' | 'curves'
+>
 
 /** A linear-RGB pixel (0..1 nominal; may exceed 1 mid-pipeline before output encode). */
 export type LinearRGB = [number, number, number]

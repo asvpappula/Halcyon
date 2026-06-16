@@ -23,6 +23,8 @@ uniform float uHslSat[8];
 uniform float uHslLum[8];
 uniform float uSharpen, uNoiseReduction, uVignette, uGrain;
 uniform vec2 uTexel; // 1 / source size, for neighbor taps (0 when effects unused)
+uniform sampler2D uCurve; // 256×1 baked tone-curve LUT (master ∘ per-channel)
+uniform float uCurveActive; // 0 = skip (exact identity), 1 = apply
 
 const float HSL_BANDS[8] = float[8](0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 270.0, 300.0);
 
@@ -136,7 +138,17 @@ void main() {
     c += vec3(g) * (uGrain / 100.0) * 0.12;
   }
 
-  outColor = vec4(linearToSrgb(c.r), linearToSrgb(c.g), linearToSrgb(c.b), 1.0);
+  vec3 srgb = vec3(linearToSrgb(c.r), linearToSrgb(c.g), linearToSrgb(c.b));
+
+  // (9) Tone curve — sample the baked LUT per channel. Gated so 0 = exact identity
+  // (the LUT's 8-bit quantization must not perturb the equivalence gate).
+  if (uCurveActive > 0.5) {
+    srgb.r = texture(uCurve, vec2(srgb.r, 0.5)).r;
+    srgb.g = texture(uCurve, vec2(srgb.g, 0.5)).g;
+    srgb.b = texture(uCurve, vec2(srgb.b, 0.5)).b;
+  }
+
+  outColor = vec4(srgb, 1.0);
 }`
 
 export const PARAM_UNIFORMS = [

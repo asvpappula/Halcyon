@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CanvasView } from './CanvasView'
 import { Slider } from './Slider'
 import { HslMixer } from './HslMixer'
+import { CurveEditor } from './CurveEditor'
 import { ReferenceTray } from './ReferenceTray'
 import { ExportDialog } from './ExportDialog'
 import { FunnelHero } from './FunnelHero'
@@ -202,6 +203,10 @@ export function Editor() {
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Effects</div>
           <Slider label="Vignette" ck="vignette" />
           <Slider label="Grain" ck="grain" min={0} />
+
+          <div className="mt-5">
+            <CurveEditor />
+          </div>
 
           <div className="mb-1 mt-5 text-[11px] uppercase tracking-wider text-fg-muted">Crop</div>
           <div className="flex flex-wrap gap-1">
