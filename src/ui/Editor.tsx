@@ -4,6 +4,7 @@ import { Slider } from './Slider'
 import { HslMixer } from './HslMixer'
 import { CurveEditor } from './CurveEditor'
 import { LutPanel } from './LutPanel'
+import { Filmstrip } from './Filmstrip'
 import { ReferenceTray } from './ReferenceTray'
 import { ExportDialog } from './ExportDialog'
 import { FunnelHero } from './FunnelHero'
@@ -60,7 +61,6 @@ export function Editor() {
   const activeId = useEditor((s) => s.activeId)
   const order = useEditor((s) => s.order)
   const photos = useEditor((s) => s.photos)
-  const setActive = useEditor((s) => s.setActive)
   const hist = useEditor((s) => (s.activeId ? s.history[s.activeId] : undefined))
   const canUndo = !!hist && hist.cursor > 0
   const canRedo = !!hist && hist.cursor < hist.stack.length
@@ -69,17 +69,9 @@ export function Editor() {
   const pendingLook = useEditor((s) => s.pendingLook)
   const applyLook = useEditor((s) => s.applyLook)
   const setPendingLook = useEditor((s) => s.setPendingLook)
-  const selection = useEditor((s) => s.selection)
-  const batchProgress = useEditor((s) => s.batchProgress)
-  const toggleSelect = useEditor((s) => s.toggleSelect)
-  const selectAll = useEditor((s) => s.selectAll)
-  const clearSelect = useEditor((s) => s.clearSelect)
-  const applyMatchToSelection = useEditor((s) => s.applyMatchToSelection)
-  const targetStats = useEditor((s) => s.targetStats)
   const pushToast = useToasts((s) => s.push)
   const copySettings = useEditor((s) => s.copySettings)
   const pasteSettings = useEditor((s) => s.pasteSettings)
-  const pasteToSelection = useEditor((s) => s.pasteToSelection)
   const clipboard = useEditor((s) => s.clipboard)
   const setCompare = useEditor((s) => s.setCompare)
 
@@ -149,6 +141,31 @@ export function Editor() {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
+  }, [])
+
+  // Library shortcuts: 1–5 rate the active photo (press the same number to clear),
+  // P/X flag pick/reject (toggle), U unflag. Ignored while typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      const st = useEditor.getState()
+      const id = st.activeId
+      if (!id) return
+      if (e.key >= '1' && e.key <= '5') {
+        const n = Number(e.key)
+        st.setRating(id, st.ratings[id] === n ? 0 : n)
+      } else if (e.key === 'p' || e.key === 'P') {
+        st.setFlag(id, st.flags[id] === 'pick' ? null : 'pick')
+      } else if (e.key === 'x' || e.key === 'X') {
+        st.setFlag(id, st.flags[id] === 'reject' ? null : 'reject')
+      } else if (e.key === 'u' || e.key === 'U') {
+        st.setFlag(id, null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   return (
@@ -302,81 +319,8 @@ export function Editor() {
       </div>
       )}
 
-      {/* filmstrip + batch controls (when multiple imported) */}
-      {order.length > 1 && (
-        <footer className="flex h-14 shrink-0 items-center gap-3 border-t border-hairline bg-panel px-3">
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              onClick={selection.length === order.length ? clearSelect : selectAll}
-              className="rounded-md border border-hairline px-2 py-1 text-[11px] text-fg-dim transition-colors hover:bg-hover"
-            >
-              {selection.length === order.length ? 'Clear' : 'Select all'}
-            </button>
-            {selection.length > 0 &&
-              (batchProgress ? (
-                <span className="tnum text-[11px] text-fg-dim">
-                  Matching {batchProgress.done}/{batchProgress.total}…
-                </span>
-              ) : (
-                <>
-                  <button
-                    onClick={applyMatchToSelection}
-                    disabled={!targetStats}
-                    className="rounded-md border border-accent px-2 py-1 text-[11px] text-accent transition-colors hover:bg-accent-subtle disabled:cursor-not-allowed disabled:opacity-40"
-                    title={targetStats ? undefined : 'Add a reference look first'}
-                  >
-                    Apply match to {selection.length}
-                  </button>
-                  {clipboard && (
-                    <button
-                      onClick={() => {
-                        pasteToSelection()
-                        pushToast(`Pasted to ${selection.length} ${selection.length === 1 ? 'photo' : 'photos'}`)
-                      }}
-                      className="rounded-md border border-hairline px-2 py-1 text-[11px] text-fg-dim transition-colors hover:bg-hover"
-                      title="Paste copied settings onto the selected photos"
-                    >
-                      Paste to {selection.length}
-                    </button>
-                  )}
-                </>
-              ))}
-          </div>
-          <div className="flex flex-1 items-center gap-2 overflow-x-auto">
-            {order.map((id) => {
-              const sel = selection.includes(id)
-              return (
-                <div
-                  key={id}
-                  className={`flex shrink-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs ${
-                    id === activeId ? 'border-accent' : 'border-hairline'
-                  }`}
-                >
-                  <button
-                    onClick={() => toggleSelect(id)}
-                    aria-label={sel ? 'Deselect' : 'Select'}
-                    aria-pressed={sel}
-                    className={`grid h-4 w-4 place-items-center rounded border text-[10px] leading-none ${
-                      sel
-                        ? 'border-accent bg-accent-subtle text-accent'
-                        : 'border-hairline-strong text-transparent'
-                    }`}
-                  >
-                    x
-                  </button>
-                  <button
-                    onClick={() => setActive(id)}
-                    className={id === activeId ? 'text-fg' : 'text-fg-muted hover:text-fg'}
-                    title={photos[id]?.name}
-                  >
-                    {photos[id]?.name.slice(0, 16) ?? id.slice(0, 6)}
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </footer>
-      )}
+      {/* library bar + filmstrip + batch controls (when multiple imported) */}
+      {order.length > 1 && <Filmstrip />}
 
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
     </div>

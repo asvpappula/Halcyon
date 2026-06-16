@@ -36,9 +36,9 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 - [x] Manual tone-curve point editing + per-channel RGB curves — monotone-cubic curve math (`engine/curve.ts`, 7 tests) baked into a 256-LUT sampled in `shaders.ts` §9 (gated identity), interactive `CurveEditor.tsx` (drag/add/remove, master+R/G/B), undoable. Verified: S-curve + per-channel isolation through the shader.
 
 ## Library + organization
-- [ ] Collections (create/rename/delete/assign)
-- [ ] Star ratings (1–5) + flags (pick/reject/unflagged)
-- [ ] Filter by rating/flag, sort by date/name/rating
+- [x] Collections (create/rename/delete/assign) — chips in the filmstrip bar; double-click to rename, "Add to collection" for the selection. Persisted in localStorage.
+- [x] Star ratings (1–5) + flags (pick/reject/unflagged) — in-filmstrip stars + flag toggle; keyboard 1–5 (toggle), P/X/U (input-guarded). Persisted.
+- [x] Filter by rating/flag, sort by date(added)/name/rating — library bar selects drive a derived visible set; batch ops act on the visible/selected set. (`persist/library.ts`, `ui/Filmstrip.tsx`)
 
 ## Presets + LUTs
 - [x] User presets (save/apply/delete) + built-in starter looks — `persist/presets.ts` + ReferenceTray (inline name input).

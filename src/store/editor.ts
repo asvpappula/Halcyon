@@ -28,6 +28,7 @@ import {
   type PhotoRow,
 } from '../persist/db'
 import { loadUserPresets, saveUserPresets, type Preset } from '../persist/presets'
+import { loadLibrary, saveLibrary, type Flag, type Collection } from '../persist/library'
 
 export interface PhotoMeta {
   id: string
@@ -73,6 +74,10 @@ export type ControlKey = DevelopKey
 // Tone-curve channel: master (rgb) or an individual color channel.
 export type CurveChannel = 'rgb' | 'r' | 'g' | 'b'
 
+// Library filter/sort.
+export type FlagFilter = 'all' | 'pick' | 'reject' | 'unflagged'
+export type SortKey = 'added' | 'name' | 'rating'
+
 // HSL / color mixer: one of three channels within a band.
 export type HslChannel = 'hue' | 'sat' | 'lum'
 const HSL_KEY: Record<HslChannel, 'hslHue' | 'hslSat' | 'hslLum'> = {
@@ -108,6 +113,13 @@ interface EditorState {
   clipboard: Partial<ControlParams> | null
   compare: boolean // while true, the canvas renders the unedited original
   luts: LutMeta[]
+  // Library organization
+  ratings: Record<string, number>
+  flags: Record<string, Flag>
+  collections: Collection[]
+  activeCollection: string | null // null = all photos
+  libFilter: { minRating: number; flag: FlagFilter }
+  libSort: SortKey
 
   addPhoto: (meta: PhotoMeta, bitmap: ImageBitmap, bytes?: Blob) => void
   setActive: (id: string) => void
@@ -155,6 +167,17 @@ interface EditorState {
   endLutScrub: () => void
   deleteLut: (id: string) => void
   initLuts: () => Promise<void>
+  setRating: (id: string, rating: number) => void
+  setFlag: (id: string, flag: Flag | null) => void
+  setSelection: (ids: string[]) => void
+  createCollection: (name: string) => string
+  renameCollection: (id: string, name: string) => void
+  deleteCollection: (id: string) => void
+  addToCollection: (collectionId: string, photoIds: string[]) => void
+  removeFromCollection: (collectionId: string, photoId: string) => void
+  setActiveCollection: (id: string | null) => void
+  setLibFilter: (partial: Partial<{ minRating: number; flag: FlagFilter }>) => void
+  setLibSort: (key: SortKey) => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -225,6 +248,13 @@ export const useEditor = create<EditorState>()((set, get) => ({
   clipboard: null,
   compare: false,
   luts: [],
+  ...(() => {
+    const lib = loadLibrary()
+    return { ratings: lib.ratings, flags: lib.flags, collections: lib.collections }
+  })(),
+  activeCollection: null,
+  libFilter: { minRating: 0, flag: 'all' as FlagFilter },
+  libSort: 'added' as SortKey,
 
   addPhoto: (meta, bitmap, bytes) => {
     images.set(meta.id, { bitmap, width: meta.width, height: meta.height })
@@ -678,6 +708,73 @@ export const useEditor = create<EditorState>()((set, get) => ({
       /* ignore — LUTs just won't be available */
     }
   },
+
+  setRating: (id, rating) => {
+    const { ratings, flags, collections } = get()
+    const next = { ...ratings }
+    if (rating <= 0) delete next[id]
+    else next[id] = Math.min(5, Math.max(1, Math.round(rating)))
+    set({ ratings: next })
+    saveLibrary({ ratings: next, flags, collections })
+  },
+
+  setFlag: (id, flag) => {
+    const { ratings, flags, collections } = get()
+    const next = { ...flags }
+    if (flag === null) delete next[id]
+    else next[id] = flag
+    set({ flags: next })
+    saveLibrary({ ratings, flags: next, collections })
+  },
+
+  setSelection: (ids) => set({ selection: ids }),
+
+  createCollection: (name) => {
+    const id = crypto.randomUUID()
+    const { ratings, flags, collections } = get()
+    const next = [...collections, { id, name: name.trim() || 'Untitled', photoIds: [] }]
+    set({ collections: next })
+    saveLibrary({ ratings, flags, collections: next })
+    return id
+  },
+
+  renameCollection: (id, name) => {
+    const { ratings, flags, collections } = get()
+    const next = collections.map((c) => (c.id === id ? { ...c, name: name.trim() || c.name } : c))
+    set({ collections: next })
+    saveLibrary({ ratings, flags, collections: next })
+  },
+
+  deleteCollection: (id) => {
+    const { ratings, flags, collections, activeCollection } = get()
+    const next = collections.filter((c) => c.id !== id)
+    set({ collections: next, activeCollection: activeCollection === id ? null : activeCollection })
+    saveLibrary({ ratings, flags, collections: next })
+  },
+
+  addToCollection: (collectionId, photoIds) => {
+    const { ratings, flags, collections } = get()
+    const next = collections.map((c) =>
+      c.id === collectionId
+        ? { ...c, photoIds: Array.from(new Set([...c.photoIds, ...photoIds])) }
+        : c,
+    )
+    set({ collections: next })
+    saveLibrary({ ratings, flags, collections: next })
+  },
+
+  removeFromCollection: (collectionId, photoId) => {
+    const { ratings, flags, collections } = get()
+    const next = collections.map((c) =>
+      c.id === collectionId ? { ...c, photoIds: c.photoIds.filter((p) => p !== photoId) } : c,
+    )
+    set({ collections: next })
+    saveLibrary({ ratings, flags, collections: next })
+  },
+
+  setActiveCollection: (id) => set({ activeCollection: id }),
+  setLibFilter: (partial) => set((s) => ({ libFilter: { ...s.libFilter, ...partial } })),
+  setLibSort: (key) => set({ libSort: key }),
 
   hydrate: (photos, edits, imgs) => {
     imgs.forEach((v, k) => images.set(k, v))
