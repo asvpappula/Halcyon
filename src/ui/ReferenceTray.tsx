@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useEditor } from '../store/editor'
+import { BUILTIN_PRESETS } from '../persist/presets'
 
 async function fileToRef(file: File) {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
@@ -44,6 +45,10 @@ export function ReferenceTray() {
   const targetStats = useEditor((s) => s.targetStats)
   const matchStrength = useEditor((s) => s.matchStrength)
   const activeId = useEditor((s) => s.activeId)
+  const userPresets = useEditor((s) => s.userPresets)
+  const applyLook = useEditor((s) => s.applyLook)
+  const savePreset = useEditor((s) => s.savePreset)
+  const deletePreset = useEditor((s) => s.deletePreset)
 
   const onFiles = async (files: FileList | null) => {
     if (!files) return
@@ -123,6 +128,57 @@ export function ReferenceTray() {
       {matchStrength != null && matchStrength < 60 && (
         <div className="text-[11px] text-fg-muted">Low confidence — tune to finish.</div>
       )}
+
+      <div className="mt-2 border-t border-hairline pt-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] uppercase tracking-wider text-fg-muted">Presets</span>
+          <button
+            disabled={!activeId}
+            onClick={() => {
+              const n = window.prompt('Preset name')
+              if (n) savePreset(n)
+            }}
+            className="text-[11px] text-fg-dim transition-colors hover:text-fg disabled:opacity-40"
+          >
+            Save
+          </button>
+        </div>
+        <div className="flex flex-col gap-1">
+          {BUILTIN_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              disabled={!activeId}
+              onClick={() => applyLook(p.params)}
+              className="rounded-md border border-hairline px-2 py-1.5 text-left text-xs text-fg-dim transition-colors hover:bg-hover hover:text-fg disabled:opacity-40"
+            >
+              {p.name}
+            </button>
+          ))}
+          {userPresets.map((p) => (
+            <div key={p.id} className="group flex items-center gap-1">
+              <button
+                disabled={!activeId}
+                onClick={() => applyLook(p.params)}
+                className="flex-1 rounded-md border border-hairline px-2 py-1.5 text-left text-xs text-fg transition-colors hover:bg-hover disabled:opacity-40"
+              >
+                {p.name}
+              </button>
+              <button
+                onClick={() => deletePreset(p.id)}
+                aria-label="Delete preset"
+                className="px-1 text-fg-faint opacity-0 transition-opacity hover:text-fg focus-visible:opacity-100 group-hover:opacity-100"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {userPresets.length === 0 && (
+            <span className="text-[11px] leading-relaxed text-fg-faint">
+              Save the current look as a preset.
+            </span>
+          )}
+        </div>
+      </div>
 
       <input
         ref={fileRef}

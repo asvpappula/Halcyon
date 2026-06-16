@@ -12,6 +12,7 @@ import {
 import { DEFAULT_VIEW, type View } from '../engine/pipeline'
 import { computeMatch, computeTargetStats, type MatchParams } from '../engine/match'
 import { persistEdit, persistPhoto, type PhotoRow } from '../persist/db'
+import { loadUserPresets, saveUserPresets, type Preset } from '../persist/presets'
 
 export interface PhotoMeta {
   id: string
@@ -66,6 +67,7 @@ interface EditorState {
   pendingLook: Partial<ControlParams> | null
   selection: string[]
   batchProgress: { done: number; total: number } | null
+  userPresets: Preset[]
 
   addPhoto: (meta: PhotoMeta, bitmap: ImageBitmap, bytes?: Blob) => void
   setActive: (id: string) => void
@@ -90,6 +92,8 @@ interface EditorState {
   selectAll: () => void
   clearSelect: () => void
   applyMatchToSelection: () => void
+  savePreset: (name: string) => void
+  deletePreset: (id: string) => void
   hydrate: (photos: PhotoMeta[], edits: Record<string, ControlParams>, imgs: Map<string, ImageEntry>) => void
 }
 
@@ -117,6 +121,20 @@ let scrub: { key: ControlKey; before: number } | null = null
 // rAF loops fighting over the same photo's params).
 let animToken = 0
 
+// Numeric develop controls captured into a preset (crop excluded).
+const PRESET_KEYS: DevelopKey[] = [
+  'exposure',
+  'contrast',
+  'highlights',
+  'shadows',
+  'whites',
+  'blacks',
+  'temp',
+  'tint',
+  'vibrance',
+  'saturation',
+]
+
 export const useEditor = create<EditorState>()((set, get) => ({
   photos: {},
   order: [],
@@ -131,6 +149,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   pendingLook: null,
   selection: [],
   batchProgress: null,
+  userPresets: loadUserPresets(),
 
   addPhoto: (meta, bitmap, bytes) => {
     images.set(meta.id, { bitmap, width: meta.width, height: meta.height })
@@ -348,6 +367,24 @@ export const useEditor = create<EditorState>()((set, get) => ({
         set({ batchProgress: null }) // never leave the progress guard stuck
       }
     })()
+  },
+
+  savePreset: (name) => {
+    const { activeId, edits, userPresets } = get()
+    if (!activeId) return
+    const cur = edits[activeId]
+    const params: Partial<ControlParams> = {}
+    for (const k of PRESET_KEYS) if (cur[k] !== 0) params[k] = cur[k]
+    const preset: Preset = { id: crypto.randomUUID(), name: name.trim() || 'Untitled', params }
+    const next = [...userPresets, preset]
+    set({ userPresets: next })
+    saveUserPresets(next)
+  },
+
+  deletePreset: (id) => {
+    const next = get().userPresets.filter((p) => p.id !== id)
+    set({ userPresets: next })
+    saveUserPresets(next)
   },
 
   hydrate: (photos, edits, imgs) => {
