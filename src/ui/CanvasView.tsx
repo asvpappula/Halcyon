@@ -4,6 +4,8 @@ import { useEditor, getImage, getLutData } from '../store/editor'
 import { DEFAULT_PARAMS } from '../engine/types'
 import { ContextMenu } from './ContextMenu'
 import { buildPhotoMenu } from './photoMenu'
+import { solveWhiteBalance } from '../engine/wb'
+import { srgbToLinear } from '../engine/color'
 
 /** Hosts the WebGL2 canvas. Renders on demand when the active image, params, or
  *  view change. Wheel = zoom, drag = pan (when zoomed), double-click = reset view. */
@@ -20,6 +22,9 @@ export function CanvasView() {
   const view = useEditor((s) => s.view)
   const crop = useEditor((s) => (s.activeId ? s.edits[s.activeId].crop : null))
   const activePhoto = useEditor((s) => (s.activeId ? s.photos[s.activeId] : null))
+  const eyedropper = useEditor((s) => s.eyedropper)
+  const setEyedropper = useEditor((s) => s.setEyedropper)
+  const setWhiteBalance = useEditor((s) => s.setWhiteBalance)
   const [size, setSize] = useState({ w: 0, h: 0 })
 
   const requestRender = () => {
@@ -124,7 +129,50 @@ export function CanvasView() {
     requestRender()
   }, [params, view, compare])
 
+  // WB eyedropper: map the click to a source pixel, sample it, solve temp/tint so it
+  // becomes neutral, apply, and disarm. Samples the original image (pre-develop).
+  const sampleWhiteBalance = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current
+    const img = activeId ? getImage(activeId) : undefined
+    if (!canvas || !img || !activePhoto) return setEyedropper(false)
+    const rect = canvas.getBoundingClientRect()
+    const W = rect.width
+    const H = rect.height
+    const imgA = activePhoto.width / activePhoto.height
+    const viewA = W / H
+    const fsx = imgA > viewA ? 1 : imgA / viewA
+    const fsy = imgA > viewA ? viewA / imgA : 1
+    const dispW = fsx * view.zoom * W
+    const dispH = fsy * view.zoom * H
+    const imgLeft = W / 2 + view.panX * (W / 2) - dispW / 2
+    const imgTop = H / 2 - view.panY * (H / 2) - dispH / 2
+    const u = (clientX - rect.left - imgLeft) / dispW
+    const v = (clientY - rect.top - imgTop) / dispH
+    if (u < 0 || u > 1 || v < 0 || v > 1) return setEyedropper(false)
+    const sx = Math.min(img.width - 1, Math.max(0, Math.floor(u * img.width)))
+    const sy = Math.min(img.height - 1, Math.max(0, Math.floor(v * img.height)))
+    const sc = document.createElement('canvas')
+    sc.width = 1
+    sc.height = 1
+    const sctx = sc.getContext('2d', { willReadFrequently: true })
+    if (!sctx) return setEyedropper(false)
+    sctx.imageSmoothingEnabled = false
+    sctx.drawImage(img.bitmap, sx, sy, 1, 1, 0, 0, 1, 1)
+    const d = sctx.getImageData(0, 0, 1, 1).data
+    const { temp, tint } = solveWhiteBalance(
+      srgbToLinear(d[0] / 255),
+      srgbToLinear(d[1] / 255),
+      srgbToLinear(d[2] / 255),
+    )
+    setWhiteBalance(temp, tint)
+    setEyedropper(false)
+  }
+
   const onPointerDown = (e: React.PointerEvent) => {
+    if (eyedropper) {
+      sampleWhiteBalance(e.clientX, e.clientY)
+      return
+    }
     if (view.zoom <= 1) return
     ;(e.target as Element).setPointerCapture(e.pointerId)
     dragRef.current = { x: e.clientX, y: e.clientY }
@@ -190,7 +238,10 @@ export function CanvasView() {
         role="img"
         aria-label={compare ? 'Photo preview (showing original)' : 'Photo preview'}
         className="block h-full w-full"
-        style={{ cursor: view.zoom > 1 ? 'grab' : 'default', touchAction: 'none' }}
+        style={{
+          cursor: eyedropper ? 'crosshair' : view.zoom > 1 ? 'grab' : 'default',
+          touchAction: 'none',
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

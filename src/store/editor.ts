@@ -112,6 +112,7 @@ interface EditorState {
   userPresets: Preset[]
   clipboard: Partial<ControlParams> | null
   compare: boolean // while true, the canvas renders the unedited original
+  eyedropper: boolean // WB eyedropper armed; next canvas click sets white balance
   luts: LutMeta[]
   // Library organization
   ratings: Record<string, number>
@@ -161,6 +162,8 @@ interface EditorState {
   pasteSettings: () => void
   pasteToSelection: () => void
   setCompare: (on: boolean) => void
+  setEyedropper: (on: boolean) => void
+  setWhiteBalance: (temp: number, tint: number) => void
   importLut: (file: File) => Promise<string>
   setLut: (id: string | null) => void
   setLutAmountLive: (amount: number) => void
@@ -248,6 +251,7 @@ export const useEditor = create<EditorState>()((set, get) => ({
   userPresets: loadUserPresets(),
   clipboard: null,
   compare: false,
+  eyedropper: false,
   luts: [],
   ...(() => {
     const lib = loadLibrary()
@@ -647,6 +651,19 @@ export const useEditor = create<EditorState>()((set, get) => ({
   },
 
   setCompare: (on) => set({ compare: on }),
+
+  setEyedropper: (on) => set({ eyedropper: on }),
+
+  // Set temp + tint together (one undo command) — used by the WB eyedropper.
+  setWhiteBalance: (temp, tint) => {
+    const { activeId, edits } = get()
+    if (!activeId) return
+    const cur = edits[activeId]
+    const before = { temp: cur.temp, tint: cur.tint }
+    const after = { temp, tint }
+    set({ edits: { ...edits, [activeId]: { ...cur, ...after } } })
+    pushCommand(set, get, activeId, before, after)
+  },
 
   // Parse + register a .cube LUT. Throws on a malformed file (caller toasts the error).
   importLut: async (file) => {

@@ -74,6 +74,8 @@ export function Editor() {
   const pasteSettings = useEditor((s) => s.pasteSettings)
   const clipboard = useEditor((s) => s.clipboard)
   const setCompare = useEditor((s) => s.setCompare)
+  const eyedropper = useEditor((s) => s.eyedropper)
+  const setEyedropper = useEditor((s) => s.setEyedropper)
 
   const doCopy = () => {
     copySettings()
@@ -206,6 +208,17 @@ export function Editor() {
         >
           Paste
         </TopButton>
+        <button
+          onClick={() => setEyedropper(!eyedropper)}
+          disabled={!activeId}
+          aria-pressed={eyedropper}
+          title="White balance eyedropper — click a neutral gray in the photo"
+          className={`rounded-md border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            eyedropper ? 'border-accent text-accent' : 'border-hairline text-fg-dim hover:bg-raised'
+          }`}
+        >
+          WB
+        </button>
         <button
           onPointerDown={() => setCompare(true)}
           onPointerUp={() => setCompare(false)}
