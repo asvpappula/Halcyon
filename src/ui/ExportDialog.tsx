@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { zipSync } from 'fflate'
 import { useEditor, getImage, getLutData } from '../store/editor'
-import { exportPhoto, downloadBlob, type ExportFormat, type ExportOptions } from '../engine/export'
+import {
+  exportPhoto,
+  downloadBlob,
+  type ExportFormat,
+  type ExportOptions,
+  type WatermarkPos,
+} from '../engine/export'
 
 const SIZES: { label: string; maxEdge?: number }[] = [
   { label: 'Original' },
@@ -12,6 +18,14 @@ const FORMATS: { label: string; value: ExportFormat; ext: string }[] = [
   { label: 'JPEG', value: 'image/jpeg', ext: 'jpg' },
   { label: 'PNG', value: 'image/png', ext: 'png' },
   { label: 'WebP', value: 'image/webp', ext: 'webp' },
+  { label: 'TIFF', value: 'image/tiff', ext: 'tiff' },
+]
+const WM_POS: { label: string; value: WatermarkPos }[] = [
+  { label: '↘', value: 'br' },
+  { label: '↙', value: 'bl' },
+  { label: '↗', value: 'tr' },
+  { label: '↖', value: 'tl' },
+  { label: '◉', value: 'center' },
 ]
 
 export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -23,6 +37,9 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [quality, setQuality] = useState(92)
   const [sizeIdx, setSizeIdx] = useState(0)
   const [scope, setScope] = useState<'one' | 'selected'>('one')
+  const [wmText, setWmText] = useState('')
+  const [wmPos, setWmPos] = useState<WatermarkPos>('br')
+  const [wmOpacity, setWmOpacity] = useState(60)
   const [busy, setBusy] = useState(false)
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -40,7 +57,7 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   if (!open) return null
   const fmtInfo = FORMATS.find((f) => f.value === fmt)!
-  const lossy = fmt !== 'image/png'
+  const lossy = fmt === 'image/jpeg' || fmt === 'image/webp'
   const pct = (quality - 50) / 0.5
 
   const raf = () => new Promise((r) => requestAnimationFrame(() => r(null)))
@@ -52,6 +69,9 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
       quality: quality / 100,
       maxEdge: SIZES[sizeIdx].maxEdge,
       lut: lr && ld ? { size: ld.size, data: ld.data, amount: lr.amount } : null,
+      watermark: wmText.trim()
+        ? { text: wmText.trim(), position: wmPos, opacity: wmOpacity / 100, scale: 0.04 }
+        : null,
     }
   }
 
@@ -172,6 +192,48 @@ export function ExportDialog({ open, onClose }: { open: boolean; onClose: () => 
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="mb-4">
+          <div className="mb-1 text-[11px] uppercase tracking-wider text-fg-muted">Watermark</div>
+          <input
+            value={wmText}
+            onChange={(e) => setWmText(e.target.value)}
+            placeholder="Optional text…"
+            className="mb-2 w-full rounded-md border border-hairline bg-base px-2 py-1.5 text-xs text-fg outline-none placeholder:text-fg-faint focus:border-accent"
+          />
+          {wmText.trim() && (
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                {WM_POS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setWmPos(p.value)}
+                    title={p.value}
+                    className={`grid h-7 w-7 place-items-center rounded border text-xs ${
+                      wmPos === p.value
+                        ? 'border-accent text-accent'
+                        : 'border-hairline text-fg-dim hover:bg-hover'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={100}
+                value={wmOpacity}
+                onChange={(e) => setWmOpacity(Number(e.target.value))}
+                className="hx-range flex-1"
+                aria-label="Watermark opacity"
+                style={{
+                  background: `linear-gradient(90deg, var(--text-secondary) 0%, var(--text-secondary) ${wmOpacity}%, var(--border-strong) ${wmOpacity}%)`,
+                }}
+              />
+            </div>
+          )}
         </div>
 
         {err && <div className="mb-2 text-xs text-fg-muted">Export failed: {err}</div>}

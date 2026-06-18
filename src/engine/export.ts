@@ -6,16 +6,52 @@ import type { ControlParams } from './types'
 import { DEFAULT_COLOR_GRADE } from './types'
 import { buildProgram, PARAM_MAP, HSL_UNIFORMS } from './pipeline'
 import { buildCurveLut, isCurveActive } from './curve'
+import { encodeTiff } from './tiff'
 
 const ZERO8 = [0, 0, 0, 0, 0, 0, 0, 0]
 
-export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp'
+export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/tiff'
+
+export type WatermarkPos = 'tl' | 'tr' | 'bl' | 'br' | 'center'
+export interface Watermark {
+  text: string
+  position: WatermarkPos
+  opacity: number // 0..1
+  scale: number // fraction of the shorter edge (e.g. 0.04)
+}
 
 export interface ExportOptions {
   format: ExportFormat
   quality?: number // 0..1, for jpeg/webp
   maxEdge?: number // longest-edge cap in px; omitted = full size
   lut?: { size: number; data: Uint8Array; amount: number } | null // resolved from the registry
+  watermark?: Watermark | null
+}
+
+function drawWatermark(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  wm: Watermark,
+): void {
+  const fs = Math.max(11, Math.round(Math.min(w, h) * (wm.scale || 0.04)))
+  ctx.font = `600 ${fs}px Inter, system-ui, sans-serif`
+  ctx.textBaseline = 'alphabetic'
+  const pad = Math.round(fs * 0.8)
+  const tw = ctx.measureText(wm.text).width
+  let x = pad
+  let y = h - pad
+  if (wm.position === 'tr' || wm.position === 'br') x = w - tw - pad
+  if (wm.position === 'tl' || wm.position === 'tr') y = pad + fs
+  if (wm.position === 'center') {
+    x = (w - tw) / 2
+    y = (h + fs) / 2
+  }
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'
+  ctx.shadowBlur = Math.round(fs * 0.25)
+  ctx.fillStyle = `rgba(255,255,255,${Math.max(0, Math.min(1, wm.opacity))})`
+  ctx.fillText(wm.text, x, y)
+  ctx.shadowBlur = 0
 }
 
 export async function exportPhoto(
@@ -23,7 +59,7 @@ export async function exportPhoto(
   params: ControlParams,
   opts: ExportOptions,
 ): Promise<Blob> {
-  const { format, quality = 0.92, maxEdge, lut } = opts
+  const { format, quality = 0.92, maxEdge, lut, watermark } = opts
 
   const glCanvas = document.createElement('canvas')
   glCanvas.width = 1
@@ -168,6 +204,13 @@ export async function exportPhoto(
     ctx.imageSmoothingQuality = 'high'
     ctx.drawImage(glCanvas, sx, sy, sw, sh, 0, 0, outW, outH)
 
+    if (watermark?.text.trim()) drawWatermark(ctx, outW, outH, watermark)
+
+    // TIFF isn't supported by canvas.toBlob — encode it ourselves (uncompressed RGB).
+    if (format === 'image/tiff') {
+      const px = ctx.getImageData(0, 0, outW, outH).data
+      return new Blob([encodeTiff(outW, outH, px)], { type: 'image/tiff' })
+    }
     const blob = await new Promise<Blob | null>((res) => out.toBlob(res, format, quality))
     if (!blob) throw new Error('Export encoding failed')
     return blob
