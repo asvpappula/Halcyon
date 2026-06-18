@@ -1,9 +1,31 @@
-import { useMemo, useState } from 'react'
-import { useEditor } from '../store/editor'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEditor, getImage } from '../store/editor'
 import { useToasts } from '../store/toast'
 import type { Flag } from '../persist/library'
 import { ContextMenu } from './ContextMenu'
 import { buildPhotoMenu } from './photoMenu'
+
+/** A real thumbnail for a filmstrip photo — draws the decoded bitmap (cover-fit). */
+function FilmThumb({ id }: { id: string }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const img = getImage(id)
+    const cv = ref.current
+    if (!img || !cv) return
+    const W = 56
+    const H = 40
+    cv.width = W
+    cv.height = H
+    const x = cv.getContext('2d')
+    if (!x) return
+    const s = Math.max(W / img.width, H / img.height)
+    const dw = img.width * s
+    const dh = img.height * s
+    x.imageSmoothingQuality = 'medium'
+    x.drawImage(img.bitmap, (W - dw) / 2, (H - dh) / 2, dw, dh)
+  }, [id])
+  return <canvas ref={ref} aria-hidden className="h-10 w-14 rounded bg-base object-cover" />
+}
 
 /** Clickable 1–5 star rating. Clicking the current rating clears it. */
 function Stars({ id, rating }: { id: string; rating: number }) {
@@ -319,7 +341,7 @@ export function Filmstrip() {
                     onClick={() => toggleSelect(id)}
                     aria-label={sel ? 'Deselect' : 'Select'}
                     aria-pressed={sel}
-                    className={`grid h-4 w-4 place-items-center rounded border text-[10px] leading-none ${
+                    className={`grid h-4 w-4 shrink-0 place-items-center rounded border text-[10px] leading-none ${
                       sel ? 'border-accent bg-accent-subtle text-accent' : 'border-hairline-strong text-transparent'
                     }`}
                   >
@@ -327,13 +349,20 @@ export function Filmstrip() {
                   </button>
                   <button
                     onClick={() => setActive(id)}
-                    className={`text-xs ${id === activeId ? 'text-fg' : 'text-fg-muted hover:text-fg'}`}
                     title={photos[id]?.name}
+                    className={`overflow-hidden rounded ${id === activeId ? 'ring-1 ring-accent' : ''}`}
                   >
-                    {photos[id]?.name.slice(0, 16) ?? id.slice(0, 6)}
+                    <FilmThumb id={id} />
                   </button>
                 </div>
-                <div className="flex items-center justify-between gap-2 pl-6">
+                <button
+                  onClick={() => setActive(id)}
+                  title={photos[id]?.name}
+                  className={`max-w-[78px] truncate text-left text-[11px] ${id === activeId ? 'text-fg' : 'text-fg-muted hover:text-fg'}`}
+                >
+                  {photos[id]?.name ?? id.slice(0, 6)}
+                </button>
+                <div className="flex items-center justify-between gap-2">
                   <Stars id={id} rating={ratings[id] ?? 0} />
                   <FlagButton id={id} flag={flags[id]} />
                 </div>

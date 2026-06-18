@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useEditor } from '../store/editor'
+import { useToasts } from '../store/toast'
 import { loadImageFile } from './import'
 
 /** First-run / no-photos state. The free no-login tool IS the landing/funnel
@@ -7,19 +8,23 @@ import { loadImageFile } from './import'
 export function FunnelHero() {
   const fileRef = useRef<HTMLInputElement>(null)
   const addPhoto = useEditor((s) => s.addPhoto)
+  const pushToast = useToasts((s) => s.push)
   const [drag, setDrag] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const onFiles = async (files: FileList | null) => {
     if (!files) return
+    setBusy(true)
     for (const f of Array.from(files)) {
       try {
         const { meta, bitmap, bytes } = await loadImageFile(f)
         addPhoto(meta, bitmap, bytes)
       } catch (e) {
         console.error(e)
-        alert((e as Error).message)
+        pushToast((e as Error).message || 'Could not import that file.', 'error')
       }
     }
+    setBusy(false)
   }
 
   return (
@@ -47,13 +52,14 @@ export function FunnelHero() {
         </p>
         <button
           onClick={() => fileRef.current?.click()}
+          disabled={busy}
           className={`mx-auto block w-full max-w-sm rounded-lg border border-dashed px-6 py-10 text-sm transition-colors ${
             drag
               ? 'border-accent text-fg'
               : 'border-hairline-strong text-fg-muted hover:border-accent hover:text-fg-dim'
-          }`}
+          } ${busy ? 'animate-pulse' : ''}`}
         >
-          Drop photos here, or click to import
+          {busy ? 'Decoding…' : 'Drop photos here, or click to import'}
         </button>
         <div className="mt-6 flex justify-center gap-6 text-[11px] text-fg-faint">
           <span>1 · Drop a reference</span>

@@ -55,6 +55,7 @@ export function Editor() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [importing, setImporting] = useState(0)
   const addPhoto = useEditor((s) => s.addPhoto)
   const undo = useEditor((s) => s.undo)
   const redo = useEditor((s) => s.redo)
@@ -97,15 +98,21 @@ export function Editor() {
 
   const onFiles = async (files: FileList | null) => {
     if (!files) return
-    for (const file of Array.from(files)) {
+    const arr = Array.from(files)
+    setImporting((n) => n + arr.length)
+    let ok = 0
+    for (const file of arr) {
       try {
         const { meta, bitmap, bytes } = await loadImageFile(file)
         addPhoto(meta, bitmap, bytes)
+        ok++
       } catch (e) {
         console.error(e)
         pushToast((e as Error).message || 'Could not import that file.', 'error')
       }
+      setImporting((n) => n - 1)
     }
+    if (ok > 0) pushToast(`Imported ${ok} ${ok === 1 ? 'photo' : 'photos'}`)
   }
 
   useEffect(() => {
@@ -237,6 +244,11 @@ export function Editor() {
         <TopButton onClick={() => fileRef.current?.click()} title="Import photos">
           Import
         </TopButton>
+        {importing > 0 && (
+          <span className="tnum animate-pulse text-xs text-accent" role="status">
+            Importing {importing}…
+          </span>
+        )}
         <TopButton primary disabled={!activeId} onClick={() => setExportOpen(true)} title="Export">
           Export
         </TopButton>
