@@ -17,7 +17,7 @@ Built + verified + committed: the single-photo wedge end-to-end (import → refe
 
 Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 - [ ] **Crop / aspect** — add `crop: CropRect|null` to `ControlParams` (fit/ops ignore it); aspect presets (1:1, 4:5, 16:9, 3:2, Original) set a centered rect as one command; live overlay rect on the canvas (use the renderer's contain-fit rect at zoom 1); export honors crop by 2D-cropping the full render before resize/encode (no shader change).
-- [ ] **Batch-to-selection** — multi-select in the filmstrip; Web Worker pool (`hardwareConcurrency-1`); each worker runs `computeMatch(bitmap, targetStats)` per image (= the per-image normalization, ARCHITECTURE §2); determinate progress; one grouped undo; transfer via `ImageBitmap`.
+- [x] **Batch-to-selection** — multi-select filmstrip + per-image normalization; the fit now runs in a **Web Worker** (`engine/match.worker.ts`) off the main thread (main extracts the cheap proxy, worker fits), determinate progress, one undo command per photo. (Single worker, not a pool — sufficient since the worker is the bottleneck, not parallelism.)
 - [ ] **Funnel shell** — no-login route that *is* the tool (clean minimal shell; the cinematic GSAP/Three.js landing is its own later task, below).
 - [ ] **Share link** — v1: encode the look (`ControlParams`) in a URL hash to pre-load + apply to your own photo. (True before/after image URL needs the deferred Supabase storage.)
 - [ ] Then Phase 2 end gates: /review → /qa → /ship → land-and-deploy → canary.
@@ -29,10 +29,12 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 
 ## Develop toolkit (the Lightroom-clone bulk — build only when users ask)
 - [x] HSL / Color Mixer (8 bands: hue/sat/lum) — render-only stage in the shader (`shaders.ts` §7), array uniforms, `HslMixer.tsx` UI, undoable per-band scrub. Verified: identity at 0, correct hue/sat/lum, per-band isolation, equivalence gate unaffected.
-- [ ] Color Grading (shadow/mid/highlight wheels + luminance)
-- [x] Detail — Sharpening (unsharp amount) + Noise Reduction (luminance), shared source-space high-pass in `shaders.ts` §8. (Radius/detail/masking + color-NR deferred refinements.)
-- [x] Effects — Vignette (radial darken/lighten) + Grain (monochrome, source-locked). Verified through the shader. (Post-crop vignette deferred; v1 is lens-style over the full frame.)
-- [ ] Geometry — perspective correction, straighten, rotate (basic crop ships in P2)
+- [x] Color Grading — shadow/mid/highlight hue/sat wheels + per-region luminance + balance (`ui/ColorGrade.tsx`, render-only shader stage, region-isolated). Verified.
+- [x] Presence — Texture, Clarity, Dehaze (local-contrast + veil, render-only). Verified on an edge texture.
+- [x] White balance eyedropper — click a neutral; temp/tint solved exactly (`engine/wb.ts`).
+- [x] Detail — Sharpening (amount + radius/detail/masking) + Noise Reduction (luminance + color NR). Verified.
+- [x] Effects — Vignette (amount + midpoint/feather/roundness, round↔box) + Grain (amount + size/roughness). Verified.
+- [x] Geometry — straighten + perspective H/V (shader UV transform, display + export). **Rotate-90 deferred** (needs frame-aspect swap through fit/crop/overlay/export + visual iteration).
 - [x] Manual tone-curve point editing + per-channel RGB curves — monotone-cubic curve math (`engine/curve.ts`, 7 tests) baked into a 256-LUT sampled in `shaders.ts` §9 (gated identity), interactive `CurveEditor.tsx` (drag/add/remove, master+R/G/B), undoable. Verified: S-curve + per-channel isolation through the shader.
 
 ## Library + organization
@@ -64,7 +66,7 @@ Remaining Phase 2 (each ~hero-sized; resume in a fresh pass):
 - [ ] Cinematic GSAP/Three.js landing (lazy-load after LCP, CSS fallback). Ships only once there's a validated product to market; the working tool is the demo until then.
 
 ## Export polish
-- [ ] TIFF + WebP, watermark (text/image), advanced resize
+- [x] TIFF (hand-rolled encoder `engine/tiff.ts`) + WebP + text watermark (position/opacity) + batch export (zip via fflate). Verified. (Image-watermark + advanced resize deferred.)
 
 ## Phase 1 review fast-follows (from staff-eng review)
 - [x] Large-image proxy: working texture downscaled to min(MAX_TEXTURE_SIZE, 4096); fit/stats already run on a 256px proxy (`proxyPixels`). (Worker-offload for very large batches still pending.)
